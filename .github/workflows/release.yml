@@ -1,0 +1,85 @@
+name: Test & Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Cache makemsix binary
+        id: cache-makemsix
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/makemsix
+          key: makemsix-linux-v1
+
+      - name: Build makemsix
+        if: steps.cache-makemsix.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake git-lfs
+          git clone https://github.com/microsoft/msix-packaging.git /tmp/msix-packaging
+          cd /tmp/msix-packaging
+          git lfs pull
+          ./makelinux.sh --pack --skip-tests
+          mkdir -p ~/.local/bin
+          cp .vs/bin/makemsix ~/.local/bin/makemsix
+
+      - name: Run integration tests
+        env:
+          MAKEMSIX_PATH: ~/.local/bin/makemsix
+        run: go test -tags integration -v ./...
+
+  release:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install svu
+        run: go install github.com/caarlos0/svu/v3@latest
+
+      - name: Determine version
+        id: version
+        run: |
+          CURRENT=$(svu current)
+          NEXT=$(svu next)
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" = "$NEXT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No version bump needed ($CURRENT)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Version bump: $CURRENT -> $NEXT"
+          fi
+
+      - name: Create tag and release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag "${{ steps.version.outputs.next }}"
+          git push origin "${{ steps.version.outputs.next }}"
+          gh release create "${{ steps.version.outputs.next }}" --generate-notes
