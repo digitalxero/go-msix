@@ -1,4 +1,4 @@
-module github.com/digitalxero/go-msix
+module go.digitalxero.dev/go-msix
 
 go 1.23
 
