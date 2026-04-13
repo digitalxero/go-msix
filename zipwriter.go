@@ -79,10 +79,10 @@ func (h *hashingZipWriter) writeFile(name string, data []byte) (zipFileEntry, er
 		UncompressedSize64: uint64(len(data)),
 	}
 	// Ensure we use ZIP64 extensions if needed, but also set 32-bit fields.
-	if len(compressedData) < 0xFFFFFFFF {
+	if uint64(len(compressedData)) < 0xFFFFFFFF {
 		header.CompressedSize = uint32(len(compressedData))
 	}
-	if len(data) < 0xFFFFFFFF {
+	if uint64(len(data)) < 0xFFFFFFFF {
 		header.UncompressedSize = uint32(len(data))
 	}
 	prepareHeader(header)
@@ -121,7 +121,7 @@ func (h *hashingZipWriter) writeFileStore(name string, data []byte) (zipFileEntr
 		CompressedSize64:   uint64(len(data)),
 		UncompressedSize64: uint64(len(data)),
 	}
-	if len(data) < 0xFFFFFFFF {
+	if uint64(len(data)) < 0xFFFFFFFF {
 		header.CompressedSize = uint32(len(data))
 		header.UncompressedSize = uint32(len(data))
 	}
