@@ -1,9 +1,9 @@
 package msix
 
 import (
-	"bytes"
-	"crypto"
-	"crypto/x509"
+	"archive/zip"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,296 +11,398 @@ import (
 	"strings"
 )
 
-// SignOptions configures code signing for the MSIX package.
-type SignOptions struct {
-	Certificate *x509.Certificate
-	PrivateKey  crypto.Signer
-	CertChain   []*x509.Certificate
-}
+// Builder constructs an MSIX package. Configuration methods return the Builder for
+// chaining; payload-source and configuration errors are deferred and surfaced from
+// Build.
+type Builder interface {
+	WithIdentity(Identity) Builder
+	WithProperties(Properties) Builder
+	WithDependencies(Dependencies) Builder
+	WithCapabilities(Capabilities) Builder
+	AddResource(Resource) Builder
+	AddApplication(Application) Builder
+	AddPackageExtension(PackageExtension) Builder
 
-// fileEntry represents a file to be added to the package.
-type fileEntry struct {
-	packagePath string
-	data        []byte
-}
+	AddFile(packagePath, diskPath string) Builder
+	AddFileFromBytes(packagePath string, data []byte) Builder
+	AddFileFromReader(packagePath string, r io.Reader) Builder
+	// AddFileSource adds a file from a re-openable source. open may be called more
+	// than once during Build (e.g. once for digesting and once for output when
+	// signing) and must return a fresh reader positioned at the start each time. The
+	// contents are streamed and never fully loaded into memory.
+	AddFileSource(packagePath string, open func() (io.ReadCloser, error)) Builder
 
-// Builder constructs an MSIX package.
-type Builder struct {
-	Manifest    Manifest
-	SignOptions *SignOptions
-	files       []fileEntry
+	WithSigning(Signing) Builder
+
+	// Build streams the MSIX package to w. The context is reserved for cancellation
+	// of long-running builds.
+	Build(ctx context.Context, w io.Writer) error
 }
 
 // NewBuilder creates a new MSIX package builder.
-func NewBuilder() *Builder {
-	return &Builder{}
+func NewBuilder() Builder {
+	return &builder{}
 }
 
-// AddFile adds a file from disk to the package.
-func (b *Builder) AddFile(packagePath, diskPath string) error {
-	data, err := os.ReadFile(diskPath)
+// fileEntry represents a file to be added to the package. The bytes are never held
+// in memory: source is a re-openable handle read lazily during Build.
+type fileEntry struct {
+	packagePath string
+	source      fileSource
+}
+
+type builder struct {
+	identity     Identity
+	properties   Properties
+	dependencies Dependencies
+	capabilities Capabilities
+	resources    []Resource
+	applications []Application
+	pkgExts      []PackageExtension
+
+	files   []fileEntry
+	signing Signing
+
+	// tempDir is where compressed spills and reader spills are written. Empty means
+	// the OS default temp dir.
+	tempDir string
+	// ownedTemps are temp files the builder created from one-shot readers; removed
+	// when Build returns.
+	ownedTemps []string
+
+	// errs accumulates configuration errors deferred to Build.
+	errs []error
+}
+
+func (b *builder) WithIdentity(i Identity) Builder         { b.identity = i; return b }
+func (b *builder) WithProperties(p Properties) Builder     { b.properties = p; return b }
+func (b *builder) WithDependencies(d Dependencies) Builder { b.dependencies = d; return b }
+func (b *builder) WithCapabilities(c Capabilities) Builder { b.capabilities = c; return b }
+func (b *builder) AddResource(r Resource) Builder          { b.resources = append(b.resources, r); return b }
+func (b *builder) AddApplication(a Application) Builder {
+	b.applications = append(b.applications, a)
+	return b
+}
+func (b *builder) AddPackageExtension(e PackageExtension) Builder {
+	b.pkgExts = append(b.pkgExts, e)
+	return b
+}
+func (b *builder) WithSigning(s Signing) Builder { b.signing = s; return b }
+
+// AddFile adds a file from disk. The file is opened lazily during Build and
+// streamed; its contents are never fully loaded into memory.
+func (b *builder) AddFile(packagePath, diskPath string) Builder {
+	b.files = append(b.files, fileEntry{
+		packagePath: normalizePackagePath(packagePath),
+		source:      diskFileSource{path: diskPath},
+	})
+	return b
+}
+
+// AddFileFromBytes adds a file from a byte slice.
+func (b *builder) AddFileFromBytes(packagePath string, data []byte) Builder {
+	b.files = append(b.files, fileEntry{
+		packagePath: normalizePackagePath(packagePath),
+		source:      bytesFileSource{data: append([]byte(nil), data...)},
+	})
+	return b
+}
+
+// AddFileFromReader adds a file from a (possibly one-shot) reader. The reader is
+// streamed to a temp file so the source becomes re-openable; the temp file is
+// removed when Build returns. The reader is never fully buffered in memory.
+func (b *builder) AddFileFromReader(packagePath string, r io.Reader) Builder {
+	f, err := os.CreateTemp(b.tempDir, "msix-src-*")
 	if err != nil {
-		return fmt.Errorf("msix: reading %s: %w", diskPath, err)
+		b.errs = append(b.errs, fmt.Errorf("msix: creating temp for %s: %w", packagePath, err))
+		return b
+	}
+	tmp := f.Name()
+	b.ownedTemps = append(b.ownedTemps, tmp)
+	if _, err := io.Copy(f, r); err != nil {
+		f.Close()
+		b.errs = append(b.errs, fmt.Errorf("msix: reading data for %s: %w", packagePath, err))
+		return b
+	}
+	if err := f.Close(); err != nil {
+		b.errs = append(b.errs, fmt.Errorf("msix: writing temp for %s: %w", packagePath, err))
+		return b
 	}
 	b.files = append(b.files, fileEntry{
 		packagePath: normalizePackagePath(packagePath),
-		data:        data,
+		source:      diskFileSource{path: tmp},
 	})
-	return nil
+	return b
 }
 
-// AddFileFromBytes adds a file from a byte slice to the package.
-func (b *Builder) AddFileFromBytes(packagePath string, data []byte) {
+// AddFileSource adds a file from a caller-supplied re-openable source.
+func (b *builder) AddFileSource(packagePath string, open func() (io.ReadCloser, error)) Builder {
 	b.files = append(b.files, fileEntry{
 		packagePath: normalizePackagePath(packagePath),
-		data:        append([]byte(nil), data...),
+		source:      funcFileSource{opener: open},
 	})
+	return b
 }
 
-// AddFileFromReader adds a file from a reader to the package.
-func (b *Builder) AddFileFromReader(packagePath string, r io.Reader) error {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return fmt.Errorf("msix: reading data for %s: %w", packagePath, err)
+// Build assembles and streams the MSIX package to w.
+func (b *builder) Build(ctx context.Context, w io.Writer) error {
+	_ = ctx
+	defer b.cleanupOwnedTemps()
+
+	if err := errors.Join(b.errs...); err != nil {
+		return err
 	}
-	b.files = append(b.files, fileEntry{
-		packagePath: normalizePackagePath(packagePath),
-		data:        data,
-	})
-	return nil
-}
 
-// Build writes the MSIX package to the given writer.
-func (b *Builder) Build(w io.Writer) error {
-	// Step 1: Render manifest.
-	manifestData, err := renderManifest(&b.Manifest)
+	m := b.assembleManifest()
+	if err := validateManifest(m); err != nil {
+		return err
+	}
+
+	manifestData, err := renderManifest(m)
 	if err != nil {
 		return fmt.Errorf("msix: rendering manifest: %w", err)
 	}
 
-	if b.SignOptions != nil {
-		return b.buildSigned(w, manifestData)
+	if b.signing != nil {
+		creds, err := b.signing.(*signing).resolve()
+		if err != nil {
+			return fmt.Errorf("msix: resolving signing credentials: %w", err)
+		}
+		return b.buildSigned(w, manifestData, creds)
 	}
 	return b.buildUnsigned(w, manifestData)
 }
 
-func (b *Builder) buildUnsigned(w io.Writer, manifestData []byte) error {
-	hw := newHashingZipWriter(w)
+// assembleManifest translates the configured sub-builders into the internal
+// template data structure.
+func (b *builder) assembleManifest() *manifestData {
+	m := &manifestData{}
+	if b.identity != nil {
+		m.Identity = b.identity.(*identity).data()
+	}
+	if b.properties != nil {
+		m.Properties = b.properties.(*properties).data()
+	}
+	if b.dependencies != nil {
+		m.Dependencies = b.dependencies.(*dependencies).data()
+	}
+	if b.capabilities != nil {
+		m.Capabilities = b.capabilities.(*capabilities).data()
+	}
+	for _, r := range b.resources {
+		m.Resources = append(m.Resources, r.(*resource).data())
+	}
+	for _, a := range b.applications {
+		m.Applications = append(m.Applications, a.(*application).data())
+	}
+	for _, e := range b.pkgExts {
+		m.Extensions = append(m.Extensions, e.toPkgExtData())
+	}
+	return m
+}
 
-	// Step 2: Write payload files and collect block entries.
-	var blockMapEntries []zipFileEntry
-	allFiles := []string{}
-
-	// Sort files for deterministic output.
-	sorted := make([]fileEntry, len(b.files))
-	copy(sorted, b.files)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].packagePath < sorted[j].packagePath
-	})
-
-	for _, f := range sorted {
-		entry, err := hw.writeFile(f.packagePath, f.data)
-		if err != nil {
-			return fmt.Errorf("msix: writing %s: %w", f.packagePath, err)
+// validateManifest checks required fields, aggregating all problems.
+func validateManifest(m *manifestData) error {
+	var errs []error
+	if m.Identity.Name == "" {
+		errs = append(errs, errors.New("msix: identity name is required"))
+	}
+	if m.Identity.Version == "" {
+		errs = append(errs, errors.New("msix: identity version is required"))
+	}
+	if m.Identity.Publisher == "" {
+		errs = append(errs, errors.New("msix: identity publisher is required"))
+	}
+	for i, a := range m.Applications {
+		if a.ID == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] id is required", i))
 		}
-		blockMapEntries = append(blockMapEntries, entry)
-		allFiles = append(allFiles, f.packagePath)
+		ve := a.VisualElements
+		if ve.DisplayName == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] visual elements display name is required", i))
+		}
+		if ve.BackgroundColor == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] visual elements background color is required", i))
+		}
+		if ve.Square150x150Logo == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] square 150x150 logo is required", i))
+		}
+		if ve.Square44x44Logo == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] square 44x44 logo is required", i))
+		}
 	}
+	return errors.Join(errs...)
+}
 
-	// Step 3: Compute block entries for AppxManifest.xml.
-	manifestBlocks, _, err := compressBlocks(manifestData)
+func (b *builder) cleanupOwnedTemps() {
+	for _, p := range b.ownedTemps {
+		os.Remove(p)
+	}
+}
+
+// sortedFiles returns the payload files ordered by package path for deterministic output.
+func (b *builder) sortedFiles() []fileEntry {
+	s := make([]fileEntry, len(b.files))
+	copy(s, b.files)
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].packagePath < s[j].packagePath
+	})
+	return s
+}
+
+// buildCtx tracks the compressed spills created during a single build so they can all
+// be cleaned up, even on error.
+type buildCtx struct {
+	b      *builder
+	spills []string
+}
+
+func (c *buildCtx) compress(name string, src fileSource, forceStore bool) (*compressedEntry, error) {
+	e, err := compressSourceToSpill(name, src, forceStore, c.b.tempDir)
 	if err != nil {
-		return fmt.Errorf("msix: computing manifest blocks: %w", err)
+		return nil, err
+	}
+	if e.spillPath != "" {
+		c.spills = append(c.spills, e.spillPath)
+	}
+	return e, nil
+}
+
+func (c *buildCtx) cleanup() {
+	for _, p := range c.spills {
+		os.Remove(p)
+	}
+	c.spills = nil
+}
+
+// prepareCore compresses the payload files and the manifest to spills (collecting
+// block-map metadata) and renders the block map. It returns the payload+manifest
+// entries, the rendered block map bytes, and the ordered list of part names
+// (payloads + AppxManifest.xml) used for content-types generation.
+func (c *buildCtx) prepareCore(manifestData []byte) (core []*compressedEntry, blockMapBytes []byte, names []string, err error) {
+	var bm []zipFileEntry
+	for _, f := range c.b.sortedFiles() {
+		e, err := c.compress(f.packagePath, f.source, false)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("msix: compressing %s: %w", f.packagePath, err)
+		}
+		core = append(core, e)
+		bm = append(bm, e.zipFileEntry())
+		names = append(names, f.packagePath)
 	}
 
-	// Write AppxManifest.xml.
-	manifestEntry, err := hw.writeFile("AppxManifest.xml", manifestData)
+	manifestEntry, err := c.compress("AppxManifest.xml", bytesFileSource{data: manifestData}, false)
 	if err != nil {
-		return fmt.Errorf("msix: writing manifest: %w", err)
+		return nil, nil, nil, fmt.Errorf("msix: compressing manifest: %w", err)
 	}
-	_ = manifestBlocks
-	blockMapEntries = append(blockMapEntries, manifestEntry)
-	allFiles = append(allFiles, "AppxManifest.xml")
+	core = append(core, manifestEntry)
+	bm = append(bm, manifestEntry.zipFileEntry())
+	names = append(names, "AppxManifest.xml")
 
-	// Step 4: Generate AppxBlockMap.xml.
-	blockMapData, err := marshalBlockMap(blockMapEntries)
+	blockMapBytes, err = marshalBlockMap(bm)
 	if err != nil {
-		return fmt.Errorf("msix: generating block map: %w", err)
+		return nil, nil, nil, fmt.Errorf("msix: generating block map: %w", err)
+	}
+	return core, blockMapBytes, names, nil
+}
+
+func (b *builder) buildUnsigned(w io.Writer, manifestData []byte) error {
+	c := &buildCtx{b: b}
+	defer c.cleanup()
+
+	core, blockMapBytes, names, err := c.prepareCore(manifestData)
+	if err != nil {
+		return err
 	}
 
-	// Step 5: Write AppxBlockMap.xml to ZIP.
-	if _, err := hw.writeFile("AppxBlockMap.xml", blockMapData); err != nil {
-		return fmt.Errorf("msix: writing block map: %w", err)
+	blockMapEntry, err := c.compress("AppxBlockMap.xml", bytesFileSource{data: blockMapBytes}, false)
+	if err != nil {
+		return fmt.Errorf("msix: compressing block map: %w", err)
 	}
-	allFiles = append(allFiles, "AppxBlockMap.xml")
+	names = append(names, "AppxBlockMap.xml")
 
-	// Step 6: Generate and write [Content_Types].xml.
-	contentTypesData, err := marshalContentTypes(allFiles)
+	contentTypes, err := marshalContentTypes(names)
 	if err != nil {
 		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	if _, err := hw.writeFileStore("[Content_Types].xml", contentTypesData); err != nil {
-		return fmt.Errorf("msix: writing content types: %w", err)
+	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, true)
+	if err != nil {
+		return fmt.Errorf("msix: preparing content types: %w", err)
 	}
 
-	// Step 7: Close ZIP.
-	return hw.close()
+	return writeZip(w, append(core, blockMapEntry, contentTypesEntry))
 }
 
-func (b *Builder) buildSigned(w io.Writer, manifestData []byte) error {
-	// Two-pass approach: build unsigned to buffer, then compute digests and rebuild with signature.
+func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCreds) error {
+	c := &buildCtx{b: b}
+	defer c.cleanup()
 
-	// Pass 1: Build unsigned package to buffer.
-	var buf bytes.Buffer
-	if err := b.buildUnsigned(&buf, manifestData); err != nil {
-		return fmt.Errorf("msix: building unsigned package for signing: %w", err)
-	}
-
-	unsignedBytes := buf.Bytes()
-
-	// Find central directory offset.
-	cdOffset, cdSize, err := findCentralDirectoryOffset(unsignedBytes)
+	core, blockMapBytes, names, err := c.prepareCore(manifestData)
 	if err != nil {
-		return fmt.Errorf("msix: finding central directory: %w", err)
+		return err
 	}
 
-	// Compute AXPC: hash of everything before central directory.
-	axpc := hashBytes(unsignedBytes[:cdOffset])
-
-	// Compute AXCD: hash of central directory.
-	axcd := hashBytes(unsignedBytes[cdOffset : cdOffset+cdSize])
-
-	// Compute AXBM: hash of uncompressed AppxBlockMap.xml.
-	// We need to regenerate block map data.
-	blockMapData, err := b.generateBlockMapData(manifestData)
+	blockMapEntry, err := c.compress("AppxBlockMap.xml", bytesFileSource{data: blockMapBytes}, false)
 	if err != nil {
-		return fmt.Errorf("msix: regenerating block map for signing: %w", err)
+		return fmt.Errorf("msix: compressing block map: %w", err)
 	}
-	axbm := hashBytes(blockMapData)
 
-	// Compute AXCT: hash of uncompressed [Content_Types].xml.
-	contentTypesData, err := b.generateContentTypesData(manifestData)
+	// Unsigned content types (no AppxSignature.p7x override) — used for the AXCT digest
+	// and for the unsigned layout that AXPC/AXCD are computed over.
+	unsignedNames := append(append([]string{}, names...), "AppxBlockMap.xml")
+	unsignedContentTypes, err := marshalContentTypes(unsignedNames)
 	if err != nil {
-		return fmt.Errorf("msix: regenerating content types for signing: %w", err)
+		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	axct := hashBytes(contentTypesData)
+	unsignedContentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: unsignedContentTypes}, true)
+	if err != nil {
+		return fmt.Errorf("msix: preparing content types: %w", err)
+	}
 
-	// AXCI: hash of CodeIntegrity.cat (zeros if absent).
-	var axci [32]byte
+	axbm := hashBytes(blockMapBytes)
+	axct := hashBytes(unsignedContentTypes)
+	var axci [32]byte // no CodeIntegrity.cat
 
-	// Build the signature.
-	sig, err := createSignature(axpc, axcd, axct, axbm, axci, b.SignOptions)
+	unsignedLayout := append(append([]*compressedEntry{}, core...), blockMapEntry, unsignedContentTypesEntry)
+	axpc, axcd, err := computeDigests(unsignedLayout)
+	if err != nil {
+		return fmt.Errorf("msix: computing digests: %w", err)
+	}
+
+	sig, err := createSignature(axpc, axcd, axct, axbm, axci, creds)
 	if err != nil {
 		return fmt.Errorf("msix: creating signature: %w", err)
 	}
 
-	// Pass 2: Rebuild package with signature.
-	hw := newHashingZipWriter(w)
-
-	var blockMapEntries []zipFileEntry
-	allFiles := []string{}
-
-	sorted := make([]fileEntry, len(b.files))
-	copy(sorted, b.files)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].packagePath < sorted[j].packagePath
-	})
-
-	for _, f := range sorted {
-		entry, err := hw.writeFile(f.packagePath, f.data)
-		if err != nil {
-			return fmt.Errorf("msix: writing %s: %w", f.packagePath, err)
-		}
-		blockMapEntries = append(blockMapEntries, entry)
-		allFiles = append(allFiles, f.packagePath)
-	}
-
-	manifestEntry, err := hw.writeFile("AppxManifest.xml", manifestData)
+	signatureEntry, err := c.compress("AppxSignature.p7x", bytesFileSource{data: sig}, true)
 	if err != nil {
-		return fmt.Errorf("msix: writing manifest: %w", err)
+		return fmt.Errorf("msix: preparing signature: %w", err)
 	}
-	blockMapEntries = append(blockMapEntries, manifestEntry)
-	allFiles = append(allFiles, "AppxManifest.xml")
 
-	finalBlockMapData, err := marshalBlockMap(blockMapEntries)
-	if err != nil {
-		return fmt.Errorf("msix: generating block map: %w", err)
-	}
-	if _, err := hw.writeFile("AppxBlockMap.xml", finalBlockMapData); err != nil {
-		return fmt.Errorf("msix: writing block map: %w", err)
-	}
-	allFiles = append(allFiles, "AppxBlockMap.xml")
-
-	// Write signature.
-	if _, err := hw.writeFileStore("AppxSignature.p7x", sig); err != nil {
-		return fmt.Errorf("msix: writing signature: %w", err)
-	}
-	allFiles = append(allFiles, "AppxSignature.p7x")
-
-	finalContentTypes, err := marshalContentTypes(allFiles)
+	// Signed content types include the AppxSignature.p7x override; this is what ships.
+	signedNames := append(append([]string{}, unsignedNames...), "AppxSignature.p7x")
+	signedContentTypes, err := marshalContentTypes(signedNames)
 	if err != nil {
 		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	if _, err := hw.writeFileStore("[Content_Types].xml", finalContentTypes); err != nil {
-		return fmt.Errorf("msix: writing content types: %w", err)
-	}
-
-	return hw.close()
-}
-
-// generateBlockMapData regenerates block map XML bytes for digest computation.
-func (b *Builder) generateBlockMapData(manifestData []byte) ([]byte, error) {
-	var entries []zipFileEntry
-
-	sorted := make([]fileEntry, len(b.files))
-	copy(sorted, b.files)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].packagePath < sorted[j].packagePath
-	})
-
-	for _, f := range sorted {
-		blocks, _, err := compressBlocks(f.data)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, zipFileEntry{
-			Name:    f.packagePath,
-			Size:    uint64(len(f.data)),
-			LfhSize: computeLfhSize(f.packagePath),
-			Blocks:  blocks,
-		})
-	}
-
-	manifestBlocks, _, err := compressBlocks(manifestData)
+	signedContentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: signedContentTypes}, true)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("msix: preparing content types: %w", err)
 	}
-	entries = append(entries, zipFileEntry{
-		Name:    "AppxManifest.xml",
-		Size:    uint64(len(manifestData)),
-		LfhSize: computeLfhSize("AppxManifest.xml"),
-		Blocks:  manifestBlocks,
-	})
 
-	return marshalBlockMap(entries)
+	final := append(append([]*compressedEntry{}, core...), blockMapEntry, signatureEntry, signedContentTypesEntry)
+	return writeZip(w, final)
 }
 
-// generateContentTypesData regenerates content types XML bytes for digest computation.
-func (b *Builder) generateContentTypesData(manifestData []byte) ([]byte, error) {
-	allFiles := []string{}
-
-	sorted := make([]fileEntry, len(b.files))
-	copy(sorted, b.files)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].packagePath < sorted[j].packagePath
-	})
-
-	for _, f := range sorted {
-		allFiles = append(allFiles, f.packagePath)
+// writeZip streams the given entries into a new zip written to w.
+func writeZip(w io.Writer, entries []*compressedEntry) error {
+	zw := zip.NewWriter(w)
+	for _, e := range entries {
+		if err := writeEntry(zw, e); err != nil {
+			return fmt.Errorf("msix: writing %s: %w", e.name, err)
+		}
 	}
-	allFiles = append(allFiles, "AppxManifest.xml", "AppxBlockMap.xml")
-
-	return marshalContentTypes(allFiles)
+	return zw.Close()
 }
 
 func normalizePackagePath(p string) string {

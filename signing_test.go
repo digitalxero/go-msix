@@ -103,12 +103,12 @@ func TestCreateSignature(t *testing.T) {
 	axbm := sha256.Sum256([]byte("axbm"))
 	var axci [32]byte
 
-	opts := &SignOptions{
-		Certificate: cert,
-		PrivateKey:  key,
+	creds := &signingCreds{
+		cert: cert,
+		key:  key,
 	}
 
-	sig, err := createSignature(axpc, axcd, axct, axbm, axci, opts)
+	sig, err := createSignature(axpc, axcd, axct, axbm, axci, creds)
 	if err != nil {
 		t.Fatal(err)
 	}

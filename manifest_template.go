@@ -15,35 +15,37 @@ type nsEntry struct {
 
 // Namespace URIs.
 const (
-	nsFoundation    = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
-	nsUAP           = "http://schemas.microsoft.com/appx/manifest/uap/windows10"
-	nsUAP2          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
-	nsUAP3          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
-	nsUAP4          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
-	nsUAP5          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
-	nsUAP6          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
-	nsUAP7          = "http://schemas.microsoft.com/appx/manifest/uap/windows10/7"
-	nsUAP10         = "http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
-	nsDesktop       = "http://schemas.microsoft.com/appx/manifest/desktop/windows10"
-	nsDesktop2      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
-	nsDesktop3      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/3"
-	nsDesktop4      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
-	nsDesktop6      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
-	nsDesktop7      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
-	nsDesktop9      = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
-	nsCom           = "http://schemas.microsoft.com/appx/manifest/com/windows10"
-	nsCom2          = "http://schemas.microsoft.com/appx/manifest/com/windows10/2"
-	nsCom4          = "http://schemas.microsoft.com/appx/manifest/com/windows10/4"
-	nsRescap        = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-	nsRescap3       = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/3"
-	nsRescap4       = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/4"
-	nsRescap6       = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/6"
-	nsMobile        = "http://schemas.microsoft.com/appx/manifest/mobile/windows10"
+	nsFoundation = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+	nsUAP        = "http://schemas.microsoft.com/appx/manifest/uap/windows10"
+	nsUAP2       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
+	nsUAP3       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+	nsUAP4       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+	nsUAP5       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+	nsUAP6       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
+	nsUAP7       = "http://schemas.microsoft.com/appx/manifest/uap/windows10/7"
+	nsUAP10      = "http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+	nsDesktop    = "http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+	nsDesktop2   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+	nsDesktop3   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/3"
+	nsDesktop4   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+	nsDesktop6   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+	nsDesktop7   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
+	nsDesktop9   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
+	nsCom        = "http://schemas.microsoft.com/appx/manifest/com/windows10"
+	nsCom2       = "http://schemas.microsoft.com/appx/manifest/com/windows10/2"
+	nsCom4       = "http://schemas.microsoft.com/appx/manifest/com/windows10/4"
+	nsRescap     = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+	nsRescap3    = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/3"
+	nsRescap4    = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/4"
+	nsRescap6    = "http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/6"
+	nsMobile     = "http://schemas.microsoft.com/appx/manifest/mobile/windows10"
+	// TODO(verify-xsd): confirm the printSupport namespace URI/prefix.
+	nsPrintSupport = "http://schemas.microsoft.com/appx/manifest/printsupport/windows10"
 )
 
 // manifestNamespaces determines which namespace prefixes are needed for the manifest.
 // Returns a sorted slice of nsEntry for deterministic output.
-func manifestNamespaces(m *Manifest) []nsEntry {
+func manifestNamespaces(m *manifestData) []nsEntry {
 	ns := make(map[string]string)
 
 	// Always have foundation as default namespace (handled separately).
@@ -97,7 +99,7 @@ func manifestNamespaces(m *Manifest) []nsEntry {
 	return entries
 }
 
-func addExtensionNamespaces(ext ApplicationExtension, ns map[string]string) {
+func addExtensionNamespaces(ext appExtData, ns map[string]string) {
 	// uap
 	if ext.Protocol != nil || ext.FileTypeAssociation != nil || ext.ShareTarget != nil ||
 		ext.FileOpenPicker != nil || ext.FileSavePicker != nil ||
@@ -183,9 +185,9 @@ func addExtensionNamespaces(ext ApplicationExtension, ns map[string]string) {
 		ns["com"] = nsCom
 	}
 
-	// rescap3
+	// rescap3 (application-level DesktopAppMigration)
 	if ext.DesktopAppMigrationRescap != nil {
-		ns["rescap"] = nsRescap
+		ns["rescap3"] = nsRescap3
 	}
 
 	// mobile
@@ -193,9 +195,15 @@ func addExtensionNamespaces(ext ApplicationExtension, ns map[string]string) {
 		ext.PhoneCallOriginProvider != nil {
 		ns["mobile"] = nsMobile
 	}
+
+	// printSupport
+	if ext.PrintSupportSettingsUI != nil || ext.PrintSupportExtension != nil ||
+		ext.PrintSupportJobUI != nil {
+		ns["printsupport"] = nsPrintSupport
+	}
 }
 
-func addPackageExtensionNamespaces(ext PackageExtension, ns map[string]string) {
+func addPackageExtensionNamespaces(ext pkgExtData, ns map[string]string) {
 	if ext.ComServerPkg != nil || ext.ComInterfacePkg != nil {
 		ns["com"] = nsCom
 	}
@@ -208,7 +216,7 @@ func addPackageExtensionNamespaces(ext PackageExtension, ns map[string]string) {
 }
 
 // renderManifest renders the AppxManifest.xml for the given manifest.
-func renderManifest(m *Manifest) ([]byte, error) {
+func renderManifest(m *manifestData) ([]byte, error) {
 	ns := manifestNamespaces(m)
 
 	// Build a lookup set for hasNS template function.
@@ -218,7 +226,7 @@ func renderManifest(m *Manifest) ([]byte, error) {
 	}
 
 	data := struct {
-		Manifest   *Manifest
+		Manifest   *manifestData
 		Namespaces []nsEntry
 		NSSet      map[string]bool
 	}{
@@ -252,14 +260,14 @@ var templateFuncs = template.FuncMap{
 		s = strings.ReplaceAll(s, "'", "&apos;")
 		return s
 	},
-	"hasCaps": func(c Capabilities) bool {
+	"hasCaps": func(c capabilitiesData) bool {
 		return len(c.Capabilities) > 0 || len(c.DeviceCapabilities) > 0 ||
 			len(c.Restricted) > 0 || len(c.UAP) > 0 || len(c.Custom) > 0
 	},
-	"hasAppExtensions": func(exts []ApplicationExtension) bool {
+	"hasAppExtensions": func(exts []appExtData) bool {
 		return len(exts) > 0
 	},
-	"hasPkgExtensions": func(exts []PackageExtension) bool {
+	"hasPkgExtensions": func(exts []pkgExtData) bool {
 		return len(exts) > 0
 	},
 }
@@ -648,6 +656,316 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
           />
         </desktop7:Extension>
 {{- end }}
+{{- if .FileOpenPicker }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:FileOpenPicker>
+            <uap:SupportedFileTypes>
+{{- range .FileOpenPicker.SupportedFileTypes }}
+              <uap:FileType>{{ xmlEscape .Extension }}</uap:FileType>
+{{- end }}
+            </uap:SupportedFileTypes>
+          </uap:FileOpenPicker>
+        </uap:Extension>
+{{- end }}
+{{- if .FileSavePicker }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:FileSavePicker>
+            <uap:SupportedFileTypes>
+{{- range .FileSavePicker.SupportedFileTypes }}
+              <uap:FileType>{{ xmlEscape .Extension }}</uap:FileType>
+{{- end }}
+            </uap:SupportedFileTypes>
+          </uap:FileSavePicker>
+        </uap:Extension>
+{{- end }}
+{{- if .AutoPlayContent }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:AutoPlayContent>
+{{- range .AutoPlayContent.LaunchActions }}
+            <uap:LaunchAction Verb="{{ xmlEscape .Verb }}" ActionDisplayName="{{ xmlEscape .ActionDisplayName }}" ContentEvent="{{ xmlEscape .ContentEvent }}" />
+{{- end }}
+          </uap:AutoPlayContent>
+        </uap:Extension>
+{{- end }}
+{{- if .AutoPlayDevice }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:AutoPlayDevice>
+{{- range .AutoPlayDevice.LaunchActions }}
+            <uap:LaunchAction Verb="{{ xmlEscape .Verb }}" ActionDisplayName="{{ xmlEscape .ActionDisplayName }}" DeviceEvent="{{ xmlEscape .DeviceEvent }}" />
+{{- end }}
+          </uap:AutoPlayDevice>
+        </uap:Extension>
+{{- end }}
+{{- if .DialProtocol }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:DialProtocol Name="{{ xmlEscape .DialProtocol.Name }}" />
+        </uap:Extension>
+{{- end }}
+{{- if .VoipCall }}
+        <uap:Extension Category="{{ xmlEscape .Category }}">
+          <uap:VoipCall />
+        </uap:Extension>
+{{- end }}
+{{- if .AppointmentDataProvider }}
+        <uap3:Extension Category="{{ xmlEscape .Category }}">
+          <uap3:AppointmentDataProvider ServerName="{{ xmlEscape .AppointmentDataProvider.ServerName }}" />
+        </uap3:Extension>
+{{- end }}
+{{- if .EmailDataProvider }}
+        <uap3:Extension Category="{{ xmlEscape .Category }}">
+          <uap3:EmailDataProvider ServerName="{{ xmlEscape .EmailDataProvider.ServerName }}" />
+        </uap3:Extension>
+{{- end }}
+{{- if .ContactDataProvider }}
+        <uap3:Extension Category="{{ xmlEscape .Category }}">
+          <uap3:ContactDataProvider ServerName="{{ xmlEscape .ContactDataProvider.ServerName }}" />
+        </uap3:Extension>
+{{- end }}
+{{- if .SharedFonts }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:SharedFonts>
+{{- range .SharedFonts.Fonts }}
+            <uap4:Font File="{{ xmlEscape .File }}" />
+{{- end }}
+          </uap4:SharedFonts>
+        </uap4:Extension>
+{{- end }}
+{{- if .ContactPanel }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:ContactPanel SupportsUnknownContacts="{{ if .ContactPanel.SupportsUnknownContacts }}true{{ else }}false{{ end }}" />
+        </uap4:Extension>
+{{- end }}
+{{- if .MediaCodec }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:MediaCodec{{ if .MediaCodec.DisplayName }} DisplayName="{{ xmlEscape .MediaCodec.DisplayName }}"{{ end }}{{ if .MediaCodec.Description }} Description="{{ xmlEscape .MediaCodec.Description }}"{{ end }}{{ if .MediaCodec.Category }} Category="{{ xmlEscape .MediaCodec.Category }}"{{ end }}>
+{{- range .MediaCodec.MediaTypes }}
+            <uap4:MediaType SubType="{{ xmlEscape .SubType }}" />
+{{- end }}
+          </uap4:MediaCodec>
+        </uap4:Extension>
+{{- end }}
+{{- if .LoopbackAccessRules }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:LoopbackAccessRules>
+{{- range .LoopbackAccessRules.Rules }}
+            <uap4:Rule Direction="{{ xmlEscape .Direction }}" />
+{{- end }}
+          </uap4:LoopbackAccessRules>
+        </uap4:Extension>
+{{- end }}
+{{- if .DevicePortalProvider }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:DevicePortalProvider DisplayName="{{ xmlEscape .DevicePortalProvider.DisplayName }}" AppServiceName="{{ xmlEscape .DevicePortalProvider.AppServiceName }}"{{ if .DevicePortalProvider.ContentRoute }} ContentRoute="{{ xmlEscape .DevicePortalProvider.ContentRoute }}"{{ end }}{{ if .DevicePortalProvider.HandlerRoute }} HandlerRoute="{{ xmlEscape .DevicePortalProvider.HandlerRoute }}"{{ end }} />
+        </uap4:Extension>
+{{- end }}
+{{- if .UserDataTaskDataProvider }}
+        <uap4:Extension Category="{{ xmlEscape .Category }}">
+          <uap4:UserDataTaskDataProvider ServerName="{{ xmlEscape .UserDataTaskDataProvider.ServerName }}" />
+        </uap4:Extension>
+{{- end }}
+{{- if .UserActivity }}
+        <uap5:Extension Category="{{ xmlEscape .Category }}">
+          <uap5:UserActivity ActivitySourceHost="{{ xmlEscape .UserActivity.ActivitySourceHost }}" />
+        </uap5:Extension>
+{{- end }}
+{{- if .MediaSource }}
+        <uap5:Extension Category="{{ xmlEscape .Category }}">
+          <uap5:MediaSource{{ if .MediaSource.DisplayName }} DisplayName="{{ xmlEscape .MediaSource.DisplayName }}"{{ end }}>
+{{- range .MediaSource.MediaTypes }}
+            <uap5:MediaType SubType="{{ xmlEscape .SubType }}" />
+{{- end }}
+          </uap5:MediaSource>
+        </uap5:Extension>
+{{- end }}
+{{- if .VideoRendererEffect }}
+        <uap5:Extension Category="{{ xmlEscape .Category }}">
+          <uap5:VideoRendererEffect DisplayName="{{ xmlEscape .VideoRendererEffect.DisplayName }}" ActivatableClassId="{{ xmlEscape .VideoRendererEffect.ActivatableClassID }}" />
+        </uap5:Extension>
+{{- end }}
+{{- if .BarcodeScannerProvider }}
+        <uap6:Extension Category="{{ xmlEscape .Category }}">
+          <uap6:BarcodeScannerProvider />
+        </uap6:Extension>
+{{- end }}
+{{- if .SharedFontsUap7 }}
+        <uap7:Extension Category="{{ xmlEscape .Category }}">
+          <uap7:SharedFonts>
+{{- range .SharedFontsUap7.Fonts }}
+            <uap7:Font File="{{ xmlEscape .File }}" />
+{{- end }}
+          </uap7:SharedFonts>
+        </uap7:Extension>
+{{- end }}
+{{- if .EnterpriseDataProtection }}
+        <uap7:Extension Category="{{ xmlEscape .Category }}">
+          <uap7:EnterpriseDataProtection>
+{{- range .EnterpriseDataProtection.ProtectionDomains }}
+            <uap7:ProtectionDomain Name="{{ xmlEscape .Name }}" />
+{{- end }}
+          </uap7:EnterpriseDataProtection>
+        </uap7:Extension>
+{{- end }}
+{{- if .ProtocolUap10 }}
+        <uap10:Extension Category="{{ xmlEscape .Category }}">
+          <uap10:Protocol Name="{{ xmlEscape .ProtocolUap10.Name }}"{{ if .ProtocolUap10.Parameters }} Parameters="{{ xmlEscape .ProtocolUap10.Parameters }}"{{ end }} />
+        </uap10:Extension>
+{{- end }}
+{{- if .DesktopStartupTask }}
+        <desktop:Extension Category="{{ xmlEscape .Category }}">
+          <desktop:StartupTask TaskId="{{ xmlEscape .DesktopStartupTask.TaskID }}" Enabled="{{ if .DesktopStartupTask.Enabled }}true{{ else }}false{{ end }}" />
+        </desktop:Extension>
+{{- end }}
+{{- if .SearchProtocolHandler }}
+        <desktop:Extension Category="{{ xmlEscape .Category }}">
+          <desktop:SearchProtocolHandler DisplayName="{{ xmlEscape .SearchProtocolHandler.DisplayName }}" />
+        </desktop:Extension>
+{{- end }}
+{{- if .AppPrinter }}
+        <desktop2:Extension Category="{{ xmlEscape .Category }}">
+          <desktop2:AppPrinter DisplayName="{{ xmlEscape .AppPrinter.DisplayName }}"{{ if .AppPrinter.Parameters }} Parameters="{{ xmlEscape .AppPrinter.Parameters }}"{{ end }} />
+        </desktop2:Extension>
+{{- end }}
+{{- if .SearchFilterHandler }}
+        <desktop2:Extension Category="{{ xmlEscape .Category }}">
+          <desktop2:SearchFilterHandler Clsid="{{ xmlEscape .SearchFilterHandler.CLSID }}"{{ if .SearchFilterHandler.DisplayName }} DisplayName="{{ xmlEscape .SearchFilterHandler.DisplayName }}"{{ end }} />
+        </desktop2:Extension>
+{{- end }}
+{{- if .SearchPropertyHandler }}
+        <desktop2:Extension Category="{{ xmlEscape .Category }}">
+          <desktop2:SearchPropertyHandler Clsid="{{ xmlEscape .SearchPropertyHandler.CLSID }}"{{ if .SearchPropertyHandler.DisplayName }} DisplayName="{{ xmlEscape .SearchPropertyHandler.DisplayName }}"{{ end }} />
+        </desktop2:Extension>
+{{- end }}
+{{- if .FirewallRules }}
+        <desktop2:Extension Category="{{ xmlEscape .Category }}">
+          <desktop2:FirewallRules>
+{{- range .FirewallRules.Rules }}
+            <desktop2:Rule Direction="{{ xmlEscape .Direction }}" IPProtocol="{{ xmlEscape .Protocol }}"{{ if .Profile }} Profile="{{ xmlEscape .Profile }}"{{ end }}{{ if .LocalPortMin }} LocalPortMin="{{ xmlEscape .LocalPortMin }}"{{ end }}{{ if .LocalPortMax }} LocalPortMax="{{ xmlEscape .LocalPortMax }}"{{ end }}{{ if .RemotePortMin }} RemotePortMin="{{ xmlEscape .RemotePortMin }}"{{ end }}{{ if .RemotePortMax }} RemotePortMax="{{ xmlEscape .RemotePortMax }}"{{ end }} />
+{{- end }}
+          </desktop2:FirewallRules>
+        </desktop2:Extension>
+{{- end }}
+{{- if .DesktopEventLogging }}
+        <desktop2:Extension Category="{{ xmlEscape .Category }}">
+          <desktop2:DesktopEventLogging{{ if .DesktopEventLogging.ProviderGUID }} ProviderGuid="{{ xmlEscape .DesktopEventLogging.ProviderGUID }}"{{ end }}>
+{{- range .DesktopEventLogging.Channels }}
+            <desktop2:Channel Name="{{ xmlEscape .Name }}" />
+{{- end }}
+          </desktop2:DesktopEventLogging>
+        </desktop2:Extension>
+{{- end }}
+{{- if .AutoPlayHandler }}
+        <desktop3:Extension Category="{{ xmlEscape .Category }}">
+          <desktop3:AutoPlayHandler>
+{{- range .AutoPlayHandler.InvokeActions }}
+            <desktop3:InvokeAction ActionDisplayName="{{ xmlEscape .ActionDisplayName }}" ProviderClsid="{{ xmlEscape .ProviderCLSID }}"{{ if .ContentEvent }} ContentEvent="{{ xmlEscape .ContentEvent }}"{{ end }}{{ if .DeviceEvent }} DeviceEvent="{{ xmlEscape .DeviceEvent }}"{{ end }} />
+{{- end }}
+          </desktop3:AutoPlayHandler>
+        </desktop3:Extension>
+{{- end }}
+{{- if .CloudFiles }}
+        <desktop3:Extension Category="{{ xmlEscape .Category }}">
+          <desktop3:CloudFiles{{ if .CloudFiles.IconResource }} IconResource="{{ xmlEscape .CloudFiles.IconResource }}"{{ end }}>
+{{- if .CloudFiles.CustomStateHandler }}
+            <desktop3:CustomStateHandler Clsid="{{ xmlEscape .CloudFiles.CustomStateHandler.CLSID }}" />
+{{- end }}
+{{- if .CloudFiles.ThumbnailProviderHandler }}
+            <desktop3:ThumbnailProviderHandler Clsid="{{ xmlEscape .CloudFiles.ThumbnailProviderHandler.CLSID }}" />
+{{- end }}
+{{- if .CloudFiles.ExtendedPropertyHandler }}
+            <desktop3:ExtendedPropertyHandler Clsid="{{ xmlEscape .CloudFiles.ExtendedPropertyHandler.CLSID }}" />
+{{- end }}
+{{- if .CloudFiles.BannersHandler }}
+            <desktop3:BannersHandler Clsid="{{ xmlEscape .CloudFiles.BannersHandler.CLSID }}" />
+{{- end }}
+{{- if .CloudFiles.ContentUriSource }}
+            <desktop3:ContentUriSource Clsid="{{ xmlEscape .CloudFiles.ContentUriSource.CLSID }}" />
+{{- end }}
+          </desktop3:CloudFiles>
+        </desktop3:Extension>
+{{- end }}
+{{- if .ApprovedShellExtension }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:ApprovedShellExtension Clsid="{{ xmlEscape .ApprovedShellExtension.CLSID }}" />
+        </desktop7:Extension>
+{{- end }}
+{{- if .ControlPanelItem }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:ControlPanelItem SystemApplicationName="{{ xmlEscape .ControlPanelItem.SystemApplicationName }}" />
+        </desktop7:Extension>
+{{- end }}
+{{- if .ServiceDesktop7 }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:Service Name="{{ xmlEscape .ServiceDesktop7.Name }}"{{ if .ServiceDesktop7.StartupType }} StartupType="{{ xmlEscape .ServiceDesktop7.StartupType }}"{{ end }}{{ if .ServiceDesktop7.StartAccount }} StartAccount="{{ xmlEscape .ServiceDesktop7.StartAccount }}"{{ end }}{{ if .ServiceDesktop7.Arguments }} Arguments="{{ xmlEscape .ServiceDesktop7.Arguments }}"{{ end }} />
+        </desktop7:Extension>
+{{- end }}
+{{- if .ApplicationRegistration }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:ApplicationRegistration />
+        </desktop7:Extension>
+{{- end }}
+{{- if .DesktopAppMigration }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:DesktopAppMigration>
+{{- range .DesktopAppMigration.DesktopApps }}
+            <desktop7:DesktopApp AumId="{{ xmlEscape .AumID }}" ShortcutPath="{{ xmlEscape .ShortcutPath }}" />
+{{- end }}
+          </desktop7:DesktopAppMigration>
+        </desktop7:Extension>
+{{- end }}
+{{- if .SystemFileAssociation }}
+        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+          <desktop7:SystemFileAssociation Extension="{{ xmlEscape .SystemFileAssociation.Extension }}"{{ if .SystemFileAssociation.FullDetails }} FullDetails="{{ xmlEscape .SystemFileAssociation.FullDetails }}"{{ end }}{{ if .SystemFileAssociation.PreviewDetails }} PreviewDetails="{{ xmlEscape .SystemFileAssociation.PreviewDetails }}"{{ end }}{{ if .SystemFileAssociation.PreviewTitle }} PreviewTitle="{{ xmlEscape .SystemFileAssociation.PreviewTitle }}"{{ end }}{{ if .SystemFileAssociation.TileInfo }} TileInfo="{{ xmlEscape .SystemFileAssociation.TileInfo }}"{{ end }} />
+        </desktop7:Extension>
+{{- end }}
+{{- if .FileExplorerClassicContextMenuHandler }}
+        <desktop9:Extension Category="{{ xmlEscape .Category }}">
+          <desktop9:FileExplorerClassicContextMenuHandler Clsid="{{ xmlEscape .FileExplorerClassicContextMenuHandler.CLSID }}" />
+        </desktop9:Extension>
+{{- end }}
+{{- if .FileExplorerClassicDragDropContextMenuHandler }}
+        <desktop9:Extension Category="{{ xmlEscape .Category }}">
+          <desktop9:FileExplorerClassicDragDropContextMenuHandler Clsid="{{ xmlEscape .FileExplorerClassicDragDropContextMenuHandler.CLSID }}" />
+        </desktop9:Extension>
+{{- end }}
+{{- if .DesktopAppMigrationRescap }}
+        <rescap3:Extension Category="{{ xmlEscape .Category }}">
+          <rescap3:DesktopAppMigration>
+{{- range .DesktopAppMigrationRescap.DesktopApps }}
+            <rescap3:DesktopApp AumId="{{ xmlEscape .AumID }}" ShortcutPath="{{ xmlEscape .ShortcutPath }}" />
+{{- end }}
+          </rescap3:DesktopAppMigration>
+        </rescap3:Extension>
+{{- end }}
+{{- if .MobileMultiScreenProperties }}
+        <mobile:Extension Category="{{ xmlEscape .Category }}">
+          <mobile:MobileMultiScreenProperties RestoreFromOtherDisplayOnReactivation="{{ if .MobileMultiScreenProperties.RestoreFromOtherDisplayOnReactivation }}true{{ else }}false{{ end }}" />
+        </mobile:Extension>
+{{- end }}
+{{- if .CommunicationBlockingProvider }}
+        <mobile:Extension Category="{{ xmlEscape .Category }}">
+          <mobile:CommunicationBlockingProvider />
+        </mobile:Extension>
+{{- end }}
+{{- if .PhoneCallOriginProvider }}
+        <mobile:Extension Category="{{ xmlEscape .Category }}">
+          <mobile:PhoneCallOriginProvider />
+        </mobile:Extension>
+{{- end }}
+{{- if .PrintSupportSettingsUI }}
+        <printsupport:Extension Category="{{ xmlEscape .Category }}">
+          <printsupport:PrintSupportSettingsUI />
+        </printsupport:Extension>
+{{- end }}
+{{- if .PrintSupportExtension }}
+        <printsupport:Extension Category="{{ xmlEscape .Category }}">
+          <printsupport:PrintSupportExtension />
+        </printsupport:Extension>
+{{- end }}
+{{- if .PrintSupportJobUI }}
+        <printsupport:Extension Category="{{ xmlEscape .Category }}">
+          <printsupport:PrintSupportJobUI />
+        </printsupport:Extension>
+{{- end }}
 {{- end }}
 {{- define "pkgExtension" }}
 {{- if .Certificates }}
@@ -671,6 +989,75 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
 {{- end }}
           </com:ComServer>
         </com:Extension>
+{{- end }}
+{{- if .InProcessServer }}
+        <Extension Category="{{ xmlEscape .Category }}">
+          <InProcessServer>
+            <Path>{{ xmlEscape .InProcessServer.Path }}</Path>
+{{- range .InProcessServer.ActivatableClasses }}
+            <ActivatableClass ActivatableClassId="{{ xmlEscape .ActivatableClassID }}"{{ if .ThreadingModel }} ThreadingModel="{{ xmlEscape .ThreadingModel }}"{{ end }} />
+{{- end }}
+          </InProcessServer>
+        </Extension>
+{{- end }}
+{{- if .OutOfProcessServer }}
+        <Extension Category="{{ xmlEscape .Category }}">
+          <OutOfProcessServer ServerName="{{ xmlEscape .OutOfProcessServer.ServerName }}"{{ if .OutOfProcessServer.Instancing }} Instancing="{{ xmlEscape .OutOfProcessServer.Instancing }}"{{ end }}>
+            <Path>{{ xmlEscape .OutOfProcessServer.Executable }}</Path>
+{{- if .OutOfProcessServer.Arguments }}
+            <Arguments>{{ xmlEscape .OutOfProcessServer.Arguments }}</Arguments>
+{{- end }}
+{{- range .OutOfProcessServer.ActivatableClasses }}
+            <ActivatableClass ActivatableClassId="{{ xmlEscape .ActivatableClassID }}"{{ if .ThreadingModel }} ThreadingModel="{{ xmlEscape .ThreadingModel }}"{{ end }} />
+{{- end }}
+          </OutOfProcessServer>
+        </Extension>
+{{- end }}
+{{- if .ProxyStubPkg }}
+        <Extension Category="{{ xmlEscape .Category }}">
+          <ProxyStub ClassId="{{ xmlEscape .ProxyStubPkg.CLSID }}">
+            <Path>{{ xmlEscape .ProxyStubPkg.Path }}</Path>
+          </ProxyStub>
+        </Extension>
+{{- end }}
+{{- if .PublisherCacheFolders }}
+        <Extension Category="{{ xmlEscape .Category }}">
+          <PublisherCacheFolders>
+{{- range .PublisherCacheFolders.Folders }}
+            <Folder Name="{{ xmlEscape .Name }}" />
+{{- end }}
+          </PublisherCacheFolders>
+        </Extension>
+{{- end }}
+{{- if .LoaderSearchPathOverride }}
+        <uap6:Extension Category="{{ xmlEscape .Category }}">
+          <uap6:LoaderSearchPathOverride>
+{{- range .LoaderSearchPathOverride.Entries }}
+            <uap6:LoaderSearchPathEntry FolderPath="{{ xmlEscape .FolderPath }}" />
+{{- end }}
+          </uap6:LoaderSearchPathOverride>
+        </uap6:Extension>
+{{- end }}
+{{- if .ComInterfacePkg }}
+        <com:Extension Category="{{ xmlEscape .Category }}">
+          <com:ComInterface>
+{{- range .ComInterfacePkg.ProxyStubs }}
+            <com:ProxyStub Id="{{ xmlEscape .ID }}"{{ if .DisplayName }} DisplayName="{{ xmlEscape .DisplayName }}"{{ end }}{{ if .Path }} Path="{{ xmlEscape .Path }}"{{ end }} />
+{{- end }}
+{{- range .ComInterfacePkg.Interfaces }}
+            <com:Interface Id="{{ xmlEscape .ID }}"{{ if .ProxyStubCLSID }} ProxyStubClsid="{{ xmlEscape .ProxyStubCLSID }}"{{ end }} />
+{{- end }}
+          </com:ComInterface>
+        </com:Extension>
+{{- end }}
+{{- if .DesktopAppMigrationPkg }}
+        <rescap3:Extension Category="{{ xmlEscape .Category }}">
+          <rescap3:DesktopAppMigration>
+{{- range .DesktopAppMigrationPkg.DesktopApps }}
+            <rescap3:DesktopApp AumId="{{ xmlEscape .AumID }}" ShortcutPath="{{ xmlEscape .ShortcutPath }}" />
+{{- end }}
+          </rescap3:DesktopAppMigration>
+        </rescap3:Extension>
 {{- end }}
 {{- end }}
 `

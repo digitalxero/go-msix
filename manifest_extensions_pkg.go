@@ -1,86 +1,86 @@
 package msix
 
-// PackageExtension represents a package-level extension.
+// pkgExtData represents a package-level extension.
 // Only one of the typed fields should be non-nil, corresponding to the Category.
-type PackageExtension struct {
+type pkgExtData struct {
 	Category string
 
 	// Standard activatable classes
-	InProcessServer  *PkgInProcessServer
-	OutOfProcessServer *PkgOutOfProcessServer
-	ProxyStubPkg     *ProxyStubPkg
+	InProcessServer    *pkgInProcessServerData
+	OutOfProcessServer *pkgOutOfProcessServerData
+	ProxyStubPkg       *proxyStubPkgData
 
 	// Certificates
-	Certificates *Certificates
+	Certificates *certificatesData
 
 	// PublisherCacheFolders
-	PublisherCacheFolders *PublisherCacheFolders
+	PublisherCacheFolders *publisherCacheFoldersData
 
 	// LoaderSearchPathOverride (uap6)
-	LoaderSearchPathOverride *LoaderSearchPathOverride
+	LoaderSearchPathOverride *loaderSearchPathOverrideData
 
 	// Package-level COM
-	ComServerPkg    *ComServer
-	ComInterfacePkg *ComInterface
+	ComServerPkg    *comServerData
+	ComInterfacePkg *comInterfaceData
 
 	// rescap3 package extensions
-	DesktopAppMigrationPkg *DesktopAppMigrationRescap
+	DesktopAppMigrationPkg *desktopAppMigrationRescapData
 }
 
-// PkgInProcessServer represents a package-level InProcessServer for activatable classes.
-type PkgInProcessServer struct {
+// pkgInProcessServerData represents a package-level InProcessServer for activatable classes.
+type pkgInProcessServerData struct {
 	Path               string
-	ActivatableClasses []ActivatableClass
+	ActivatableClasses []activatableClassData
 }
 
-// PkgOutOfProcessServer represents a package-level OutOfProcessServer.
-type PkgOutOfProcessServer struct {
+// pkgOutOfProcessServerData represents a package-level OutOfProcessServer.
+type pkgOutOfProcessServerData struct {
 	ServerName         string
 	Executable         string
 	Arguments          string
 	Instancing         string // "singleInstance", "multipleInstances"
-	ActivatableClasses []ActivatableClass
+	ActivatableClasses []activatableClassData
 }
 
-// ActivatableClass represents an activatable class in a server.
-type ActivatableClass struct {
+// activatableClassData represents an activatable class in a server.
+type activatableClassData struct {
 	ActivatableClassID string
 	ThreadingModel     string // "both", "STA", "MTA"
 }
 
-// ProxyStubPkg represents a package-level ProxyStub.
-type ProxyStubPkg struct {
-	Path string
+// proxyStubPkgData represents a package-level ProxyStub.
+type proxyStubPkgData struct {
+	Path  string
 	CLSID string
 }
 
-// Certificates represents package-level certificate declarations.
-type Certificates struct {
-	Certificate []CertificateEntry
+// certificatesData represents package-level certificate declarations.
+type certificatesData struct {
+	Certificate []certificateEntryData
 }
 
-// CertificateEntry is a single certificate.
-type CertificateEntry struct {
+// certificateEntryData is a single certificate.
+type certificateEntryData struct {
 	StoreName string
 	Content   string // path to .cer file in package
 }
 
-// PublisherCacheFolders represents package-level PublisherCacheFolders.
-type PublisherCacheFolders struct {
-	Folders []PublisherCacheFolder
+// publisherCacheFoldersData represents package-level PublisherCacheFolders.
+type publisherCacheFoldersData struct {
+	Folders []publisherCacheFolderData
 }
 
-// PublisherCacheFolder is a single folder entry.
-type PublisherCacheFolder struct {
+// publisherCacheFolderData is a single folder entry.
+type publisherCacheFolderData struct {
 	Name string
 }
 
-// LoaderSearchPathOverride represents uap6:LoaderSearchPathOverride.
-type LoaderSearchPathOverride struct {
-	Entries []LoaderSearchPathEntry
+// loaderSearchPathOverrideData represents uap6:LoaderSearchPathOverride.
+type loaderSearchPathOverrideData struct {
+	Entries []loaderSearchPathEntryData
 }
 
-// LoaderSearchPathEntry represents a path entry.
-type LoaderSearchPathEntry struct {
+// loaderSearchPathEntryData represents a path entry.
+type loaderSearchPathEntryData struct {
 	FolderPath string
 }

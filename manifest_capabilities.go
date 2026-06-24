@@ -1,47 +1,47 @@
 package msix
 
-// Capabilities contains all capability declarations for the package.
-type Capabilities struct {
-	Capabilities       []Capability
-	DeviceCapabilities []DeviceCapability
-	Restricted         []RestrictedCapability
-	UAP                []UAPCapability
-	Custom             []CustomCapability
+// capabilitiesData contains all capability declarations for the package.
+type capabilitiesData struct {
+	Capabilities       []capabilityData
+	DeviceCapabilities []deviceCapabilityData
+	Restricted         []restrictedCapabilityData
+	UAP                []uapCapabilityData
+	Custom             []customCapabilityData
 }
 
-// Capability represents a standard capability (e.g., "internetClient").
-type Capability struct {
+// capabilityData represents a standard capability (e.g., "internetClient").
+type capabilityData struct {
 	Name string
 }
 
-// DeviceCapability represents a DeviceCapability with optional child devices.
-type DeviceCapability struct {
+// deviceCapabilityData represents a DeviceCapability with optional child devices.
+type deviceCapabilityData struct {
 	Name    string
-	Devices []Device
+	Devices []deviceData
 }
 
-// Device represents a device within a DeviceCapability.
-type Device struct {
-	ID       string
-	Functions []DeviceFunction
+// deviceData represents a device within a DeviceCapability.
+type deviceData struct {
+	ID        string
+	Functions []deviceFunctionData
 }
 
-// DeviceFunction represents a function within a device.
-type DeviceFunction struct {
+// deviceFunctionData represents a function within a device.
+type deviceFunctionData struct {
 	Type string
 }
 
-// RestrictedCapability represents a rescap:Capability.
-type RestrictedCapability struct {
+// restrictedCapabilityData represents a rescap:Capability.
+type restrictedCapabilityData struct {
 	Name string
 }
 
-// UAPCapability represents a uap:Capability.
-type UAPCapability struct {
+// uapCapabilityData represents a uap:Capability.
+type uapCapabilityData struct {
 	Name string
 }
 
-// CustomCapability represents a uap4:CustomCapability.
-type CustomCapability struct {
+// customCapabilityData represents a uap4:CustomCapability.
+type customCapabilityData struct {
 	Name string
 }

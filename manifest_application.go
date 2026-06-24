@@ -1,30 +1,30 @@
 package msix
 
-// Application represents a single application entry in the manifest.
-type Application struct {
-	ID              string
-	Executable      string
-	EntryPoint      string
-	StartPage       string // For JavaScript apps
-	ResourceGroup   string
-	VisualElements  VisualElements
-	Extensions      []ApplicationExtension
+// applicationData represents a single application entry in the manifest.
+type applicationData struct {
+	ID             string
+	Executable     string
+	EntryPoint     string
+	StartPage      string // For JavaScript apps
+	ResourceGroup  string
+	VisualElements visualElementsData
+	Extensions     []appExtData
 }
 
-// VisualElements represents the uap:VisualElements for an application.
-type VisualElements struct {
+// visualElementsData represents the uap:VisualElements for an application.
+type visualElementsData struct {
 	DisplayName       string
 	Description       string
 	BackgroundColor   string
 	Square150x150Logo string
 	Square44x44Logo   string
 	AppListEntry      string // "default", "none"
-	DefaultTile       *DefaultTile
-	SplashScreen      *SplashScreen
+	DefaultTile       *defaultTileData
+	SplashScreen      *splashScreenData
 }
 
-// DefaultTile represents uap:DefaultTile within VisualElements.
-type DefaultTile struct {
+// defaultTileData represents uap:DefaultTile within VisualElements.
+type defaultTileData struct {
 	Wide310x150Logo   string
 	Square71x71Logo   string
 	Square310x310Logo string
@@ -32,133 +32,133 @@ type DefaultTile struct {
 	ShowNameOnTiles   string // "showOn150x150Logo", "showOnWide310x150Logo", etc.
 }
 
-// SplashScreen represents uap:SplashScreen within VisualElements.
-type SplashScreen struct {
+// splashScreenData represents uap:SplashScreen within VisualElements.
+type splashScreenData struct {
 	Image           string
 	BackgroundColor string
 }
 
-// ApplicationExtension represents an extension within an Application.
+// appExtData represents an extension within an Application.
 // Only one of the typed fields should be non-nil, corresponding to the Category.
-type ApplicationExtension struct {
+type appExtData struct {
 	Category string
 
 	// uap extensions
-	Protocol             *Protocol
-	FileTypeAssociation  *FileTypeAssociation
-	ShareTarget          *ShareTarget
-	FileOpenPicker       *FileOpenPicker
-	FileSavePicker       *FileSavePicker
-	AutoPlayContent      *AutoPlayContent
-	AutoPlayDevice       *AutoPlayDevice
-	AppService           *AppService
-	DialProtocol         *DialProtocol
-	VoipCall             *VoipCall
+	Protocol            *protocolData
+	FileTypeAssociation *fileTypeAssociationData
+	ShareTarget         *shareTargetData
+	FileOpenPicker      *fileOpenPickerData
+	FileSavePicker      *fileSavePickerData
+	AutoPlayContent     *autoPlayContentData
+	AutoPlayDevice      *autoPlayDeviceData
+	AppService          *appServiceData
+	DialProtocol        *dialProtocolData
+	VoipCall            *voipCallData
 
 	// uap3 extensions
-	AppUriHandler          *AppUriHandler
-	AppExtensionHost       *AppExtensionHost
-	AppExtension           *AppExtension
-	AppointmentDataProvider *AppointmentDataProvider
-	EmailDataProvider      *EmailDataProvider
-	ContactDataProvider    *ContactDataProvider
+	AppUriHandler           *appUriHandlerData
+	AppExtensionHost        *appExtensionHostData
+	AppExtension            *appExtensionData
+	AppointmentDataProvider *appointmentDataProviderData
+	EmailDataProvider       *emailDataProviderData
+	ContactDataProvider     *contactDataProviderData
 
 	// uap4 extensions
-	SharedFonts            *SharedFonts
-	ContactPanel           *ContactPanel
-	MediaCodec             *MediaCodec
-	LoopbackAccessRules    *LoopbackAccessRules
-	DevicePortalProvider   *DevicePortalProvider
-	UserDataTaskDataProvider *UserDataTaskDataProvider
+	SharedFonts              *sharedFontsData
+	ContactPanel             *contactPanelData
+	MediaCodec               *mediaCodecData
+	LoopbackAccessRules      *loopbackAccessRulesData
+	DevicePortalProvider     *devicePortalProviderData
+	UserDataTaskDataProvider *userDataTaskDataProviderData
 
 	// uap5 extensions
-	UserActivity       *UserActivity
-	MediaSource        *MediaSource
-	VideoRendererEffect *VideoRendererEffect
-	StartupTask        *StartupTask
-	AppExecutionAlias  *AppExecutionAlias
+	UserActivity        *userActivityData
+	MediaSource         *mediaSourceData
+	VideoRendererEffect *videoRendererEffectData
+	StartupTask         *startupTaskData
+	AppExecutionAlias   *appExecutionAliasData
 
 	// uap6 extensions
-	BarcodeScannerProvider *BarcodeScannerProvider
+	BarcodeScannerProvider *barcodeScannerProviderData
 
 	// uap7 extensions
-	SharedFontsUap7             *SharedFontsUap7
-	EnterpriseDataProtection    *EnterpriseDataProtection
+	SharedFontsUap7          *sharedFontsUap7Data
+	EnterpriseDataProtection *enterpriseDataProtectionData
 
 	// uap10 extensions
-	ProtocolUap10   *ProtocolUap10
-	HostRuntime     *HostRuntime
-	PackageIntegrity *PackageIntegrity
+	ProtocolUap10    *protocolUap10Data
+	HostRuntime      *hostRuntimeData
+	PackageIntegrity *packageIntegrityData
 
 	// desktop extensions
-	FullTrustProcess                *FullTrustProcess
-	DesktopStartupTask              *DesktopStartupTask
-	ToastNotificationActivation     *ToastNotificationActivation
-	SearchProtocolHandler           *SearchProtocolHandler
+	FullTrustProcess            *fullTrustProcessData
+	DesktopStartupTask          *desktopStartupTaskData
+	ToastNotificationActivation *toastNotificationActivationData
+	SearchProtocolHandler       *searchProtocolHandlerData
 
 	// desktop2 extensions
-	AppPrinter            *AppPrinter
-	SearchFilterHandler   *SearchFilterHandler
-	SearchPropertyHandler *SearchPropertyHandler
-	FirewallRules         *FirewallRules
-	DesktopEventLogging   *DesktopEventLogging
+	AppPrinter            *appPrinterData
+	SearchFilterHandler   *searchFilterHandlerData
+	SearchPropertyHandler *searchPropertyHandlerData
+	FirewallRules         *firewallRulesData
+	DesktopEventLogging   *desktopEventLoggingData
 
 	// desktop3 extensions
-	AutoPlayHandler *AutoPlayHandler
-	CloudFiles      *CloudFiles
+	AutoPlayHandler *autoPlayHandlerData
+	CloudFiles      *cloudFilesData
 
 	// desktop4 extensions
-	FileExplorerContextMenus *FileExplorerContextMenus
+	FileExplorerContextMenus *fileExplorerContextMenusData
 
 	// desktop6 extensions
-	Service *DesktopService
+	Service *desktopServiceData
 
 	// desktop7 extensions
-	ApprovedShellExtension  *ApprovedShellExtension
-	ControlPanelItem        *ControlPanelItem
-	ServiceDesktop7         *ServiceDesktop7
-	Shortcut                *Shortcut
-	ApplicationRegistration *ApplicationRegistration
-	DesktopAppMigration     *DesktopAppMigration
-	SystemFileAssociation   *SystemFileAssociation
+	ApprovedShellExtension  *approvedShellExtensionData
+	ControlPanelItem        *controlPanelItemData
+	ServiceDesktop7         *serviceDesktop7Data
+	Shortcut                *shortcutData
+	ApplicationRegistration *applicationRegistrationData
+	DesktopAppMigration     *desktopAppMigrationData
+	SystemFileAssociation   *systemFileAssociationData
 
 	// desktop9 extensions
-	FileExplorerClassicContextMenuHandler            *FileExplorerClassicContextMenuHandler
-	FileExplorerClassicDragDropContextMenuHandler     *FileExplorerClassicDragDropContextMenuHandler
+	FileExplorerClassicContextMenuHandler         *fileExplorerClassicContextMenuHandlerData
+	FileExplorerClassicDragDropContextMenuHandler *fileExplorerClassicDragDropContextMenuHandlerData
 
 	// com extensions
-	ComServer    *ComServer
-	ComInterface *ComInterface
+	ComServer    *comServerData
+	ComInterface *comInterfaceData
 
 	// rescap extensions
-	DesktopAppMigrationRescap *DesktopAppMigrationRescap
+	DesktopAppMigrationRescap *desktopAppMigrationRescapData
 
 	// Background tasks
-	BackgroundTasks *BackgroundTasks
+	BackgroundTasks *backgroundTasksData
 
 	// printSupport extensions
-	PrintSupportSettingsUI  *PrintSupportSettingsUI
-	PrintSupportExtension   *PrintSupportExtension
-	PrintSupportJobUI       *PrintSupportJobUI
+	PrintSupportSettingsUI *printSupportSettingsUIData
+	PrintSupportExtension  *printSupportExtensionData
+	PrintSupportJobUI      *printSupportJobUIData
 
 	// mobile extensions
-	MobileMultiScreenProperties   *MobileMultiScreenProperties
-	CommunicationBlockingProvider *CommunicationBlockingProvider
-	PhoneCallOriginProvider       *PhoneCallOriginProvider
+	MobileMultiScreenProperties   *mobileMultiScreenPropertiesData
+	CommunicationBlockingProvider *communicationBlockingProviderData
+	PhoneCallOriginProvider       *phoneCallOriginProviderData
 }
 
-// AppointmentsProvider represents uap:AppointmentsProvider.
-type AppointmentsProvider struct {
-	LaunchActionVerbs []LaunchActionVerb
+// appointmentsProviderData represents uap:AppointmentsProvider.
+type appointmentsProviderData struct {
+	LaunchActionVerbs []launchActionVerbData
 }
 
-// LaunchActionVerb is a single verb entry.
-type LaunchActionVerb struct {
+// launchActionVerbData is a single verb entry.
+type launchActionVerbData struct {
 	Verb string
 }
 
-// WebAccountProvider represents uap:WebAccountProvider.
-type WebAccountProvider struct {
-	URL        string
+// webAccountProviderData represents uap:WebAccountProvider.
+type webAccountProviderData struct {
+	URL                  string
 	BackgroundEntryPoint string
 }

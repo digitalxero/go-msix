@@ -5,6 +5,7 @@ package msix
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/xml"
 	"os"
@@ -267,14 +268,13 @@ func TestIntegration_SimplePackage(t *testing.T) {
 	makemsixUnpack := findMakemsixUnpack(t)
 
 	// Build with go-msix.
-	b := NewBuilder()
-	b.Manifest = simpleManifest()
+	b := simpleBuilder()
 
 	exeContent := []byte("MZ fake exe content for integration test")
 	b.AddFileFromBytes("App.exe", exeContent)
 
 	var goBuf bytes.Buffer
-	if err := b.Build(&goBuf); err != nil {
+	if err := b.Build(context.Background(), &goBuf); err != nil {
 		t.Fatalf("go-msix Build failed: %v", err)
 	}
 	goBytes := goBuf.Bytes()
@@ -317,21 +317,20 @@ func TestIntegration_PackageWithSubdirectories(t *testing.T) {
 	makemsixPack := findMakemsixPack(t)
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := NewBuilder()
-	b.Manifest = simpleManifest()
+	b := simpleBuilder()
 
 	payloads := map[string][]byte{
-		"App.exe":           []byte("MZ fake exe"),
-		"Assets/logo.png":   []byte("PNG fake logo data"),
-		"Data/config.json":  []byte(`{"key": "value"}`),
-		"readme.txt":        []byte("This is a readme file for testing."),
+		"App.exe":          []byte("MZ fake exe"),
+		"Assets/logo.png":  []byte("PNG fake logo data"),
+		"Data/config.json": []byte(`{"key": "value"}`),
+		"readme.txt":       []byte("This is a readme file for testing."),
 	}
 	for path, data := range payloads {
 		b.AddFileFromBytes(path, data)
 	}
 
 	var goBuf bytes.Buffer
-	if err := b.Build(&goBuf); err != nil {
+	if err := b.Build(context.Background(), &goBuf); err != nil {
 		t.Fatalf("go-msix Build failed: %v", err)
 	}
 	goBytes := goBuf.Bytes()
@@ -368,8 +367,7 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 	makemsixPack := findMakemsixPack(t)
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := NewBuilder()
-	b.Manifest = simpleManifest()
+	b := simpleBuilder()
 
 	// Create a ~200KB file (3+ 64KB blocks).
 	largeData := make([]byte, 200*1024)
@@ -381,7 +379,7 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 	b.AddFileFromBytes("large.dat", largeData)
 
 	var goBuf bytes.Buffer
-	if err := b.Build(&goBuf); err != nil {
+	if err := b.Build(context.Background(), &goBuf); err != nil {
 		t.Fatalf("go-msix Build failed: %v", err)
 	}
 	goBytes := goBuf.Bytes()
@@ -417,21 +415,20 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 func TestIntegration_UnpackValidation(t *testing.T) {
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := NewBuilder()
-	b.Manifest = simpleManifest()
+	b := simpleBuilder()
 
 	payloads := map[string][]byte{
-		"App.exe":          []byte("MZ fake exe for unpack test"),
-		"Assets/icon.png":  []byte("PNG icon data"),
-		"lib/helper.dll":   []byte("MZ DLL fake"),
-		"config.json":      []byte(`{"setting": true}`),
+		"App.exe":         []byte("MZ fake exe for unpack test"),
+		"Assets/icon.png": []byte("PNG icon data"),
+		"lib/helper.dll":  []byte("MZ DLL fake"),
+		"config.json":     []byte(`{"setting": true}`),
 	}
 	for path, data := range payloads {
 		b.AddFileFromBytes(path, data)
 	}
 
 	var goBuf bytes.Buffer
-	if err := b.Build(&goBuf); err != nil {
+	if err := b.Build(context.Background(), &goBuf); err != nil {
 		t.Fatalf("go-msix Build failed: %v", err)
 	}
 
@@ -440,44 +437,37 @@ func TestIntegration_UnpackValidation(t *testing.T) {
 
 // --- Helpers ---
 
-// simpleManifest returns a minimal valid manifest for integration testing.
-func simpleManifest() Manifest {
-	return Manifest{
-		Identity: Identity{
-			Name:                  "Integration.TestApp",
-			Version:               "1.0.0.0",
-			Publisher:             "CN=IntegrationTest",
-			ProcessorArchitecture: "x64",
-		},
-		Properties: Properties{
-			DisplayName:         "Integration Test App",
-			PublisherDisplayName: "Integration Test",
-			Logo:                "Assets/logo.png",
-		},
-		Dependencies: Dependencies{
-			TargetDeviceFamilies: []TargetDeviceFamily{
-				{Name: "Windows.Desktop", MinVersion: "10.0.17763.0", MaxVersionTested: "10.0.22621.0"},
-			},
-		},
-		Resources: []Resource{{Language: "en-us"}},
-		Applications: []Application{
-			{
-				ID:         "App",
-				Executable: "App.exe",
-				EntryPoint: "Windows.FullTrustApplication",
-				VisualElements: VisualElements{
-					DisplayName:       "Integration Test App",
-					Description:       "Integration test application",
-					BackgroundColor:   "transparent",
-					Square150x150Logo: "Assets/logo.png",
-					Square44x44Logo:   "Assets/logo.png",
-				},
-			},
-		},
-		Capabilities: Capabilities{
-			Restricted: []RestrictedCapability{{Name: "runFullTrust"}},
-		},
-	}
+// simpleBuilder returns a Builder with a minimal valid manifest for integration testing.
+func simpleBuilder() Builder {
+	return NewBuilder().
+		WithIdentity(NewIdentity().
+			WithName("Integration.TestApp").
+			WithVersion("1.0.0.0").
+			WithPublisher("CN=IntegrationTest").
+			WithProcessorArchitecture("x64").
+			Build()).
+		WithProperties(NewProperties().
+			WithDisplayName("Integration Test App").
+			WithPublisherDisplayName("Integration Test").
+			WithLogo("Assets/logo.png").
+			Build()).
+		WithDependencies(NewDependencies().
+			AddTargetDeviceFamily("Windows.Desktop", "10.0.17763.0", "10.0.22621.0").
+			Build()).
+		AddResource(NewResource().WithLanguage("en-us").Build()).
+		WithCapabilities(NewCapabilities().AddRestricted("runFullTrust").Build()).
+		AddApplication(NewApplication().
+			WithID("App").
+			WithExecutable("App.exe").
+			WithEntryPoint("Windows.FullTrustApplication").
+			WithVisualElements(NewVisualElements().
+				WithDisplayName("Integration Test App").
+				WithDescription("Integration test application").
+				WithBackgroundColor("transparent").
+				WithSquare150x150Logo("Assets/logo.png").
+				WithSquare44x44Logo("Assets/logo.png").
+				Build()).
+			Build())
 }
 
 // writeTestFile creates a file (with parent directories) in the given base directory.
@@ -567,4 +557,3 @@ func toSet(keys []string) map[string]bool {
 	}
 	return s
 }
-

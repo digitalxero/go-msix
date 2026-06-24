@@ -11,10 +11,10 @@ const contentTypesNamespace = "http://schemas.openxmlformats.org/package/2006/co
 
 // contentTypesXML is the root element of [Content_Types].xml.
 type contentTypesXML struct {
-	XMLName   xml.Name            `xml:"Types"`
-	NS        string              `xml:"xmlns,attr"`
-	Defaults  []contentDefault    `xml:"Default"`
-	Overrides []contentOverride   `xml:"Override"`
+	XMLName   xml.Name          `xml:"Types"`
+	NS        string            `xml:"xmlns,attr"`
+	Defaults  []contentDefault  `xml:"Default"`
+	Overrides []contentOverride `xml:"Override"`
 }
 
 type contentDefault struct {
@@ -29,41 +29,41 @@ type contentOverride struct {
 
 // Known MIME types by extension.
 var mimeTypes = map[string]string{
-	".exe":  "application/x-msdownload",
-	".dll":  "application/x-msdownload",
-	".png":  "image/png",
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif":  "image/gif",
-	".svg":  "image/svg+xml",
-	".ico":  "image/x-icon",
-	".bmp":  "image/bmp",
-	".json": "application/json",
-	".xml":  "application/vnd.ms-appx.manifest+xml",
-	".txt":  "text/plain",
-	".html": "text/html",
-	".htm":  "text/html",
-	".css":  "text/css",
-	".js":   "application/javascript",
-	".wasm": "application/wasm",
-	".pdf":  "application/pdf",
-	".zip":  "application/zip",
-	".wav":  "audio/wav",
-	".mp3":  "audio/mpeg",
-	".mp4":  "video/mp4",
-	".ttf":  "application/x-font-ttf",
-	".otf":  "font/otf",
-	".woff": "font/woff",
+	".exe":   "application/x-msdownload",
+	".dll":   "application/x-msdownload",
+	".png":   "image/png",
+	".jpg":   "image/jpeg",
+	".jpeg":  "image/jpeg",
+	".gif":   "image/gif",
+	".svg":   "image/svg+xml",
+	".ico":   "image/x-icon",
+	".bmp":   "image/bmp",
+	".json":  "application/json",
+	".xml":   "application/vnd.ms-appx.manifest+xml",
+	".txt":   "text/plain",
+	".html":  "text/html",
+	".htm":   "text/html",
+	".css":   "text/css",
+	".js":    "application/javascript",
+	".wasm":  "application/wasm",
+	".pdf":   "application/pdf",
+	".zip":   "application/zip",
+	".wav":   "audio/wav",
+	".mp3":   "audio/mpeg",
+	".mp4":   "video/mp4",
+	".ttf":   "application/x-font-ttf",
+	".otf":   "font/otf",
+	".woff":  "font/woff",
 	".woff2": "font/woff2",
-	".cfg":  "text/plain",
-	".ini":  "text/plain",
-	".yaml": "text/yaml",
-	".yml":  "text/yaml",
-	".toml": "text/plain",
-	".dat":  "application/octet-stream",
-	".bin":  "application/octet-stream",
-	".cat":  "application/vnd.ms-pki.seccat",
-	".p7x":  "application/octet-stream",
+	".cfg":   "text/plain",
+	".ini":   "text/plain",
+	".yaml":  "text/yaml",
+	".yml":   "text/yaml",
+	".toml":  "text/plain",
+	".dat":   "application/octet-stream",
+	".bin":   "application/octet-stream",
+	".cat":   "application/vnd.ms-pki.seccat",
+	".p7x":   "application/octet-stream",
 }
 
 // marshalContentTypes generates the [Content_Types].xml content.

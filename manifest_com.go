@@ -2,76 +2,76 @@ package msix
 
 // --- com namespace extensions ---
 
-// ComServer represents com:ComServer for COM server registration.
-type ComServer struct {
-	ExeServer       *ExeServer
-	SurrogateServer *SurrogateServer
-	InProcessServer *InProcessServer
+// comServerData represents com:ComServer for COM server registration.
+type comServerData struct {
+	ExeServer       *exeServerData
+	SurrogateServer *surrogateServerData
+	InProcessServer *inProcessServerData
 }
 
-// ExeServer represents com:ExeServer.
-type ExeServer struct {
-	Executable  string
-	DisplayName string
+// exeServerData represents com:ExeServer.
+type exeServerData struct {
+	Executable                    string
+	DisplayName                   string
 	LaunchAndActivationPermission string
-	Classes     []ComClass
+	Classes                       []comClassData
 }
 
-// SurrogateServer represents com:SurrogateServer.
-type SurrogateServer struct {
+// surrogateServerData represents com:SurrogateServer.
+type surrogateServerData struct {
 	DisplayName string
 	AppID       string
-	Classes     []ComClass
+	Classes     []comClassData
 }
 
-// InProcessServer represents com:InProcessServer within ComServer.
-type InProcessServer struct {
+// inProcessServerData represents com:InProcessServer within ComServer.
+type inProcessServerData struct {
 	Path    string
-	Classes []ComClass
+	Classes []comClassData
 }
 
-// ComClass represents a COM class registration.
-type ComClass struct {
-	ID          string // CLSID
-	DisplayName string
-	ProgID      string
-	ThreadingModel string // "Both", "STA", "MTA", "Free"
+// comClassData represents a COM class registration.
+type comClassData struct {
+	ID                       string // CLSID
+	DisplayName              string
+	ProgID                   string
+	ThreadingModel           string // "Both", "STA", "MTA", "Free"
 	VersionIndependentProgID string
-	Verbs       []ComVerb
+	Verbs                    []comVerbData
 }
 
-// ComVerb represents a verb for a COM class.
-type ComVerb struct {
+// comVerbData represents a verb for a COM class.
+type comVerbData struct {
 	ID          int
 	DisplayName string
 }
 
-// ComInterface represents com:ComInterface for interface/ProxyStub registration.
-type ComInterface struct {
-	Interfaces     []InterfaceEntry
-	ProxyStubs     []ProxyStub
-	TreatAsClasses []TreatAsClass
+// comInterfaceData represents com:ComInterface for interface/ProxyStub registration.
+type comInterfaceData struct {
+	Interfaces     []interfaceEntryData
+	ProxyStubs     []proxyStubData
+	TreatAsClasses []treatAsClassData
 }
 
-// InterfaceEntry represents a COM interface.
-type InterfaceEntry struct {
-	ID              string // IID
-	ProxyStubCLSID  string
+// interfaceEntryData represents a COM interface.
+type interfaceEntryData struct {
+	ID               string // IID
+	ProxyStubCLSID   string
 	ProxyStubCLSID32 string
-	TypeLibID       string
-	TypeLibVersion  string
+	TypeLibID        string
+	TypeLibVersion   string
 }
 
-// ProxyStub represents a COM proxy/stub.
-type ProxyStub struct {
+// proxyStubData represents a COM proxy/stub.
+type proxyStubData struct {
 	ID          string // CLSID
 	DisplayName string
 	Path        string
 	Path32      string
 }
 
-// TreatAsClass maps one CLSID to another.
-type TreatAsClass struct {
-	ID        string // source CLSID
-	TreatAs   string // target CLSID
+// treatAsClassData maps one CLSID to another.
+type treatAsClassData struct {
+	ID      string // source CLSID
+	TreatAs string // target CLSID
 }
