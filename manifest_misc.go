@@ -2,37 +2,37 @@ package msix
 
 // --- Background tasks ---
 
-// BackgroundTasks represents background task registration.
-type BackgroundTasks struct {
-	TaskType   string // "timer", "systemEvent", "pushNotification", etc.
-	Tasks      []Task
+// backgroundTasksData represents background task registration.
+type backgroundTasksData struct {
+	TaskType string // "timer", "systemEvent", "pushNotification", etc.
+	Tasks    []taskData
 }
 
-// Task represents a single background task.
-type Task struct {
+// taskData represents a single background task.
+type taskData struct {
 	Type string
 }
 
 // --- mobile namespace extensions ---
 
-// MobileMultiScreenProperties represents mobile:MobileMultiScreenProperties.
-type MobileMultiScreenProperties struct {
+// mobileMultiScreenPropertiesData represents mobile:MobileMultiScreenProperties.
+type mobileMultiScreenPropertiesData struct {
 	RestoreFromOtherDisplayOnReactivation bool
 }
 
-// CommunicationBlockingProvider represents mobile:CommunicationBlockingProvider.
-type CommunicationBlockingProvider struct{}
+// communicationBlockingProviderData represents mobile:CommunicationBlockingProvider.
+type communicationBlockingProviderData struct{}
 
-// PhoneCallOriginProvider represents mobile:PhoneCallOriginProvider.
-type PhoneCallOriginProvider struct{}
+// phoneCallOriginProviderData represents mobile:PhoneCallOriginProvider.
+type phoneCallOriginProviderData struct{}
 
 // --- printSupport namespace extensions ---
 
-// PrintSupportSettingsUI represents printSupport:PrintSupportSettingsUI.
-type PrintSupportSettingsUI struct{}
+// printSupportSettingsUIData represents printSupport:PrintSupportSettingsUI.
+type printSupportSettingsUIData struct{}
 
-// PrintSupportExtension represents printSupport:PrintSupportExtension.
-type PrintSupportExtension struct{}
+// printSupportExtensionData represents printSupport:PrintSupportExtension.
+type printSupportExtensionData struct{}
 
-// PrintSupportJobUI represents printSupport:PrintSupportJobUI.
-type PrintSupportJobUI struct{}
+// printSupportJobUIData represents printSupport:PrintSupportJobUI.
+type printSupportJobUIData struct{}

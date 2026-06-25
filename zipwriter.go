@@ -2,11 +2,8 @@ package msix
 
 import (
 	"archive/zip"
-	"bytes"
-	"compress/flate"
 	"crypto/sha256"
 	"encoding/binary"
-	"hash/crc32"
 	"io"
 )
 
@@ -27,22 +24,9 @@ type zipFileEntry struct {
 	Blocks  []blockEntry
 }
 
-// hashingZipWriter wraps archive/zip.Writer to write files with independent
-// 64KB block compression and track per-file metadata needed for MSIX block maps.
-type hashingZipWriter struct {
-	zw      *zip.Writer
-	entries []zipFileEntry
-}
-
-func newHashingZipWriter(w io.Writer) *hashingZipWriter {
-	return &hashingZipWriter{
-		zw: zip.NewWriter(w),
-	}
-}
-
 // prepareHeader sets fields required by CreateRaw that Go's archive/zip does
 // not populate automatically (unlike CreateHeader). This includes the reader
-// version and MS-DOS modified date/time.
+// version and MS-DOS modified date/time, and keeps output deterministic.
 func prepareHeader(h *zip.FileHeader) {
 	// ReaderVersion: 20 (2.0) is the minimum for DEFLATE.
 	// Go's CreateRaw does not set this.
@@ -55,200 +39,14 @@ func prepareHeader(h *zip.FileHeader) {
 	h.ModifiedTime = 0x0000
 }
 
-// writeFile writes data to the ZIP as independently compressed 64KB blocks.
-// It returns the zipFileEntry with block hashes and LfhSize.
-// Empty files are stored uncompressed.
-func (h *hashingZipWriter) writeFile(name string, data []byte) (zipFileEntry, error) {
-	// Empty files use STORE to avoid issues with empty DEFLATE streams.
-	if len(data) == 0 {
-		return h.writeFileStore(name, data)
-	}
-
-	blocks, compressedData, err := compressBlocks(data)
-	if err != nil {
-		return zipFileEntry{}, err
-	}
-
-	crc := crc32.ChecksumIEEE(data)
-
-	header := &zip.FileHeader{
-		Name:               name,
-		Method:             zip.Deflate,
-		CRC32:              crc,
-		CompressedSize64:   uint64(len(compressedData)),
-		UncompressedSize64: uint64(len(data)),
-	}
-	// Ensure we use ZIP64 extensions if needed, but also set 32-bit fields.
-	if uint64(len(compressedData)) < 0xFFFFFFFF {
-		header.CompressedSize = uint32(len(compressedData))
-	}
-	if uint64(len(data)) < 0xFFFFFFFF {
-		header.UncompressedSize = uint32(len(data))
-	}
-	prepareHeader(header)
-
-	w, err := h.zw.CreateRaw(header)
-	if err != nil {
-		return zipFileEntry{}, err
-	}
-
-	if _, err := w.Write(compressedData); err != nil {
-		return zipFileEntry{}, err
-	}
-
-	lfhSize := computeLfhSize(name)
-
-	entry := zipFileEntry{
-		Name:    name,
-		Size:    uint64(len(data)),
-		LfhSize: lfhSize,
-		Blocks:  blocks,
-	}
-	h.entries = append(h.entries, entry)
-	return entry, nil
-}
-
-// writeFileStore writes data to the ZIP without compression (STORE method).
-func (h *hashingZipWriter) writeFileStore(name string, data []byte) (zipFileEntry, error) {
-	blocks := computeBlockHashes(data)
-
-	crc := crc32.ChecksumIEEE(data)
-
-	header := &zip.FileHeader{
-		Name:               name,
-		Method:             zip.Store,
-		CRC32:              crc,
-		CompressedSize64:   uint64(len(data)),
-		UncompressedSize64: uint64(len(data)),
-	}
-	if uint64(len(data)) < 0xFFFFFFFF {
-		header.CompressedSize = uint32(len(data))
-		header.UncompressedSize = uint32(len(data))
-	}
-	prepareHeader(header)
-
-	w, err := h.zw.CreateRaw(header)
-	if err != nil {
-		return zipFileEntry{}, err
-	}
-
-	if _, err := w.Write(data); err != nil {
-		return zipFileEntry{}, err
-	}
-
-	lfhSize := computeLfhSize(name)
-
-	entry := zipFileEntry{
-		Name:    name,
-		Size:    uint64(len(data)),
-		LfhSize: lfhSize,
-		Blocks:  blocks,
-	}
-	h.entries = append(h.entries, entry)
-	return entry, nil
-}
-
-// close closes the underlying zip.Writer.
-func (h *hashingZipWriter) close() error {
-	return h.zw.Close()
-}
-
-// compressBlocks splits data into 64KB blocks, hashes each uncompressed block,
-// and independently DEFLATE-compresses each block. Returns block entries and
-// the concatenated compressed data.
-//
-// Each block is compressed with a fresh DEFLATE compressor for independent
-// decompression. Intermediate blocks use Flush() (sync marker, no FINAL bit)
-// and only the last block uses Close() (FINAL bit set). This produces a single
-// valid DEFLATE stream that standard ZIP readers can decompress, while still
-// allowing per-block random access as required by the MSIX block map.
-func compressBlocks(data []byte) ([]blockEntry, []byte, error) {
-	if len(data) == 0 {
-		// Empty file: one block with hash of empty data.
-		hash := sha256.Sum256(nil)
-		return []blockEntry{{Hash: hash, CompressedSize: 0}}, nil, nil
-	}
-
-	var blocks []blockEntry
-	var compressed bytes.Buffer
-
-	numBlocks := (len(data) + blockSize - 1) / blockSize
-
-	for i := 0; i < numBlocks; i++ {
-		offset := i * blockSize
-		end := offset + blockSize
-		if end > len(data) {
-			end = len(data)
-		}
-		block := data[offset:end]
-
-		hash := sha256.Sum256(block)
-
-		startLen := compressed.Len()
-		fw, err := flate.NewWriter(&compressed, flate.DefaultCompression)
-		if err != nil {
-			return nil, nil, err
-		}
-		if _, err := fw.Write(block); err != nil {
-			fw.Close()
-			return nil, nil, err
-		}
-
-		if i == numBlocks-1 {
-			// Last block: Close() writes the FINAL bit to terminate the DEFLATE stream.
-			if err := fw.Close(); err != nil {
-				return nil, nil, err
-			}
-		} else {
-			// Intermediate block: Flush() writes a sync marker (no FINAL bit),
-			// keeping the stream valid for concatenation.
-			if err := fw.Flush(); err != nil {
-				fw.Close()
-				return nil, nil, err
-			}
-		}
-
-		blocks = append(blocks, blockEntry{
-			Hash:           hash,
-			CompressedSize: uint64(compressed.Len() - startLen),
-		})
-	}
-
-	return blocks, compressed.Bytes(), nil
-}
-
-// computeBlockHashes computes SHA256 hashes for 64KB blocks without compression.
-// Used for STORE'd files where CompressedSize is not tracked.
-func computeBlockHashes(data []byte) []blockEntry {
-	if len(data) == 0 {
-		hash := sha256.Sum256(nil)
-		return []blockEntry{{Hash: hash}}
-	}
-
-	var blocks []blockEntry
-	for offset := 0; offset < len(data); offset += blockSize {
-		end := offset + blockSize
-		if end > len(data) {
-			end = len(data)
-		}
-		hash := sha256.Sum256(data[offset:end])
-		blocks = append(blocks, blockEntry{Hash: hash})
-	}
-	return blocks
-}
-
 // computeLfhSize returns the size of the local file header for the given file name.
-// Local file header: 30 bytes fixed + filename length + extra field length.
-// archive/zip typically uses a 20-byte extra field for ZIP64.
+// With CreateRaw and no extra field, archive/zip writes a 30-byte fixed header plus
+// the file name, with the sizes stored inline (no data descriptor). This must match
+// the actual on-disk header so the block map's LfhSize is correct.
 func computeLfhSize(name string) uint64 {
-	// The local file header signature + fixed fields = 30 bytes.
-	// archive/zip adds extended timestamp or ZIP64 extra fields.
-	// We compute this as: signature(4) + version(2) + flags(2) + method(2) +
-	// modtime(2) + moddate(2) + crc32(4) + compressedSize(4) + uncompressedSize(4) +
-	// filenameLen(2) + extraLen(2) = 30 bytes + filename + extra.
-	// archive/zip uses a data descriptor so sizes may be zero in the header,
-	// but with CreateRaw, it writes them in the header.
-	// The extra field is typically empty or minimal with CreateRaw.
+	// signature(4) + version(2) + flags(2) + method(2) + modtime(2) + moddate(2) +
+	// crc32(4) + compressedSize(4) + uncompressedSize(4) + filenameLen(2) +
+	// extraLen(2) = 30 bytes + filename (+ extra, which is 0 with CreateRaw).
 	return uint64(30 + len(name))
 }
 

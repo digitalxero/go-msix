@@ -2,8 +2,8 @@ package msix
 
 // --- uap namespace extensions ---
 
-// Protocol represents uap:Protocol for protocol activation.
-type Protocol struct {
+// protocolData represents uap:Protocol for protocol activation.
+type protocolData struct {
 	Name        string
 	DisplayName string
 	Logo        string
@@ -11,265 +11,265 @@ type Protocol struct {
 	Parameters string
 }
 
-// FileTypeAssociation represents uap:FileTypeAssociation.
-type FileTypeAssociation struct {
+// fileTypeAssociationData represents uap:FileTypeAssociation.
+type fileTypeAssociationData struct {
 	Name               string
 	DisplayName        string
 	Logo               string
 	InfoTip            string
-	SupportedFileTypes []FileType
+	SupportedFileTypes []fileTypeData
 	// uap4 additions
 	DesiredView string
 }
 
-// FileType represents a supported file type within a FileTypeAssociation.
-type FileType struct {
+// fileTypeData represents a supported file type within a FileTypeAssociation.
+type fileTypeData struct {
 	Extension   string // e.g., ".myf"
 	ContentType string // MIME type, optional
 }
 
-// ShareTarget represents uap:ShareTarget.
-type ShareTarget struct {
-	SupportedFileTypes []FileType
-	DataFormats        []DataFormat
+// shareTargetData represents uap:ShareTarget.
+type shareTargetData struct {
+	SupportedFileTypes []fileTypeData
+	DataFormats        []dataFormatData
 }
 
-// DataFormat represents a data format within ShareTarget.
-type DataFormat struct {
+// dataFormatData represents a data format within ShareTarget.
+type dataFormatData struct {
 	Format string // e.g., "Text", "URI", "Bitmap", "HTML", "StorageItems"
 }
 
-// FileOpenPicker represents uap:FileOpenPicker.
-type FileOpenPicker struct {
-	SupportedFileTypes []FileType
+// fileOpenPickerData represents uap:FileOpenPicker.
+type fileOpenPickerData struct {
+	SupportedFileTypes []fileTypeData
 }
 
-// FileSavePicker represents uap:FileSavePicker.
-type FileSavePicker struct {
-	SupportedFileTypes []FileType
+// fileSavePickerData represents uap:FileSavePicker.
+type fileSavePickerData struct {
+	SupportedFileTypes []fileTypeData
 }
 
-// AutoPlayContent represents uap:AutoPlayContent.
-type AutoPlayContent struct {
-	LaunchActions []AutoPlayLaunchAction
+// autoPlayContentData represents uap:AutoPlayContent.
+type autoPlayContentData struct {
+	LaunchActions []autoPlayLaunchActionData
 }
 
-// AutoPlayDevice represents uap:AutoPlayDevice.
-type AutoPlayDevice struct {
-	LaunchActions []AutoPlayDeviceLaunchAction
+// autoPlayDeviceData represents uap:AutoPlayDevice.
+type autoPlayDeviceData struct {
+	LaunchActions []autoPlayDeviceLaunchActionData
 }
 
-// AutoPlayLaunchAction represents an action within AutoPlayContent.
-type AutoPlayLaunchAction struct {
-	Verb        string
+// autoPlayLaunchActionData represents an action within AutoPlayContent.
+type autoPlayLaunchActionData struct {
+	Verb              string
 	ActionDisplayName string
-	ContentEvent string
+	ContentEvent      string
 }
 
-// AutoPlayDeviceLaunchAction represents an action within AutoPlayDevice.
-type AutoPlayDeviceLaunchAction struct {
-	Verb        string
+// autoPlayDeviceLaunchActionData represents an action within AutoPlayDevice.
+type autoPlayDeviceLaunchActionData struct {
+	Verb              string
 	ActionDisplayName string
-	DeviceEvent string
+	DeviceEvent       string
 }
 
-// AppService represents uap:AppService / uap3:AppService.
-type AppService struct {
-	Name            string
-	ServerName      string
+// appServiceData represents uap:AppService / uap3:AppService.
+type appServiceData struct {
+	Name                      string
+	ServerName                string
 	SupportsRemoteSystemsEnum bool // uap4
 }
 
-// DialProtocol represents uap:DialProtocol.
-type DialProtocol struct {
+// dialProtocolData represents uap:DialProtocol.
+type dialProtocolData struct {
 	Name string
 }
 
-// VoipCall represents uap:VoipCall.
-type VoipCall struct{}
+// voipCallData represents uap:VoipCall.
+type voipCallData struct{}
 
 // --- uap3 namespace extensions ---
 
-// AppUriHandler represents uap3:AppUriHandler.
-type AppUriHandler struct {
-	Hosts []AppUriHandlerHost
+// appUriHandlerData represents uap3:AppUriHandler.
+type appUriHandlerData struct {
+	Hosts []appUriHandlerHostData
 }
 
-// AppUriHandlerHost represents a host within AppUriHandler.
-type AppUriHandlerHost struct {
+// appUriHandlerHostData represents a host within AppUriHandler.
+type appUriHandlerHostData struct {
 	Name string
 }
 
-// AppExtensionHost represents uap3:AppExtensionHost.
-type AppExtensionHost struct {
-	Names []AppExtensionName
+// appExtensionHostData represents uap3:AppExtensionHost.
+type appExtensionHostData struct {
+	Names []appExtensionNameData
 }
 
-// AppExtensionName is a name entry in AppExtensionHost.
-type AppExtensionName struct {
+// appExtensionNameData is a name entry in AppExtensionHost.
+type appExtensionNameData struct {
 	Name string
 }
 
-// AppExtension represents uap3:AppExtension.
-type AppExtension struct {
-	Name        string
-	ID          string
-	DisplayName string
-	Description string
+// appExtensionData represents uap3:AppExtension.
+type appExtensionData struct {
+	Name         string
+	ID           string
+	DisplayName  string
+	Description  string
 	PublicFolder string
 }
 
-// AppointmentDataProvider represents uap3:AppointmentDataProvider.
-type AppointmentDataProvider struct {
+// appointmentDataProviderData represents uap3:AppointmentDataProvider.
+type appointmentDataProviderData struct {
 	ServerName string
 }
 
-// EmailDataProvider represents uap3:EmailDataProvider.
-type EmailDataProvider struct {
+// emailDataProviderData represents uap3:EmailDataProvider.
+type emailDataProviderData struct {
 	ServerName string
 }
 
-// ContactDataProvider represents uap3:ContactDataProvider.
-type ContactDataProvider struct {
+// contactDataProviderData represents uap3:ContactDataProvider.
+type contactDataProviderData struct {
 	ServerName string
 }
 
 // --- uap4 namespace extensions ---
 
-// SharedFonts represents uap4:SharedFonts.
-type SharedFonts struct {
-	Fonts []Font
+// sharedFontsData represents uap4:SharedFonts.
+type sharedFontsData struct {
+	Fonts []fontData
 }
 
-// Font represents a uap4:Font entry.
-type Font struct {
+// fontData represents a uap4:Font entry.
+type fontData struct {
 	File string
 }
 
-// ContactPanel represents uap4:ContactPanel.
-type ContactPanel struct {
+// contactPanelData represents uap4:ContactPanel.
+type contactPanelData struct {
 	SupportsUnknownContacts bool
 }
 
-// MediaCodec represents uap4:MediaCodec.
-type MediaCodec struct {
+// mediaCodecData represents uap4:MediaCodec.
+type mediaCodecData struct {
 	DisplayName string
 	Description string
 	Category    string // "audioDecoder", "audioEncoder", "videoDecoder", "videoEncoder"
-	MediaTypes  []MediaType
+	MediaTypes  []mediaTypeData
 }
 
-// MediaType within MediaCodec.
-type MediaType struct {
+// mediaTypeData within MediaCodec.
+type mediaTypeData struct {
 	SubType string
 }
 
-// LoopbackAccessRules represents uap4:LoopbackAccessRules.
-type LoopbackAccessRules struct {
-	Rules []LoopbackRule
+// loopbackAccessRulesData represents uap4:LoopbackAccessRules.
+type loopbackAccessRulesData struct {
+	Rules []loopbackRuleData
 }
 
-// LoopbackRule represents a single rule.
-type LoopbackRule struct {
+// loopbackRuleData represents a single rule.
+type loopbackRuleData struct {
 	Direction string // "out"
 }
 
-// DevicePortalProvider represents uap4:DevicePortalProvider.
-type DevicePortalProvider struct {
-	DisplayName string
+// devicePortalProviderData represents uap4:DevicePortalProvider.
+type devicePortalProviderData struct {
+	DisplayName    string
 	AppServiceName string
-	ContentRoute string
-	HandlerRoute string
+	ContentRoute   string
+	HandlerRoute   string
 }
 
-// UserDataTaskDataProvider represents uap4:UserDataTaskDataProvider.
-type UserDataTaskDataProvider struct {
+// userDataTaskDataProviderData represents uap4:UserDataTaskDataProvider.
+type userDataTaskDataProviderData struct {
 	ServerName string
 }
 
 // --- uap5 namespace extensions ---
 
-// UserActivity represents uap5:UserActivity.
-type UserActivity struct {
+// userActivityData represents uap5:UserActivity.
+type userActivityData struct {
 	ActivitySourceHost string
 }
 
-// MediaSource represents uap5:MediaSource.
-type MediaSource struct {
+// mediaSourceData represents uap5:MediaSource.
+type mediaSourceData struct {
 	DisplayName string
-	MediaTypes  []MediaSourceMediaType
+	MediaTypes  []mediaSourceMediaTypeData
 }
 
-// MediaSourceMediaType is a media type for MediaSource.
-type MediaSourceMediaType struct {
+// mediaSourceMediaTypeData is a media type for MediaSource.
+type mediaSourceMediaTypeData struct {
 	SubType string
 }
 
-// VideoRendererEffect represents uap5:VideoRendererEffect.
-type VideoRendererEffect struct {
-	DisplayName   string
+// videoRendererEffectData represents uap5:VideoRendererEffect.
+type videoRendererEffectData struct {
+	DisplayName        string
 	ActivatableClassID string
 }
 
-// StartupTask represents uap5:StartupTask / desktop:StartupTask.
-type StartupTask struct {
-	TaskID     string
-	Enabled    bool
+// startupTaskData represents uap5:StartupTask / desktop:StartupTask.
+type startupTaskData struct {
+	TaskID      string
+	Enabled     bool
 	DisplayName string
 }
 
-// AppExecutionAlias represents uap5:AppExecutionAlias.
-type AppExecutionAlias struct {
-	ExecutionAliases []ExecutionAlias
+// appExecutionAliasData represents uap5:AppExecutionAlias.
+type appExecutionAliasData struct {
+	ExecutionAliases []executionAliasData
 }
 
-// ExecutionAlias represents a single execution alias entry.
-type ExecutionAlias struct {
+// executionAliasData represents a single execution alias entry.
+type executionAliasData struct {
 	Alias string
 }
 
 // --- uap6 namespace extensions ---
 
-// BarcodeScannerProvider represents uap6:BarcodeScannerProvider.
-type BarcodeScannerProvider struct{}
+// barcodeScannerProviderData represents uap6:BarcodeScannerProvider.
+type barcodeScannerProviderData struct{}
 
 // --- uap7 namespace extensions ---
 
-// SharedFontsUap7 represents uap7:SharedFonts.
-type SharedFontsUap7 struct {
-	Fonts []Font
+// sharedFontsUap7Data represents uap7:SharedFonts.
+type sharedFontsUap7Data struct {
+	Fonts []fontData
 }
 
-// EnterpriseDataProtection represents uap7:EnterpriseDataProtection.
-type EnterpriseDataProtection struct {
-	ProtectionDomains []ProtectionDomain
+// enterpriseDataProtectionData represents uap7:EnterpriseDataProtection.
+type enterpriseDataProtectionData struct {
+	ProtectionDomains []protectionDomainData
 }
 
-// ProtectionDomain within EnterpriseDataProtection.
-type ProtectionDomain struct {
+// protectionDomainData within EnterpriseDataProtection.
+type protectionDomainData struct {
 	Name string
 }
 
 // --- uap10 namespace extensions ---
 
-// ProtocolUap10 represents uap10:Protocol.
-type ProtocolUap10 struct {
+// protocolUap10Data represents uap10:Protocol.
+type protocolUap10Data struct {
 	Name       string
 	Parameters string
 }
 
-// HostRuntime represents uap10:HostRuntime.
-type HostRuntime struct {
-	ID         string
+// hostRuntimeData represents uap10:HostRuntime.
+type hostRuntimeData struct {
+	ID              string
 	RuntimeBehavior string // "packagedClassicApp", "windowsApp"
 }
 
-// PackageIntegrity represents uap10:PackageIntegrity.
-type PackageIntegrity struct {
-	Content *PackageIntegrityContent
+// packageIntegrityData represents uap10:PackageIntegrity.
+type packageIntegrityData struct {
+	Content *packageIntegrityContentData
 }
 
-// PackageIntegrityContent contains content integrity info.
-type PackageIntegrityContent struct {
+// packageIntegrityContentData contains content integrity info.
+type packageIntegrityContentData struct {
 	Enforcement string // "on", "default"
 }

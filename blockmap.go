@@ -10,18 +10,18 @@ const blockMapNamespace = "http://schemas.microsoft.com/appx/2010/blockmap"
 
 // blockMapXML is the root element of AppxBlockMap.xml.
 type blockMapXML struct {
-	XMLName xml.Name       `xml:"BlockMap"`
-	NS      string         `xml:"xmlns,attr"`
-	HashMethod string      `xml:"HashMethod,attr"`
-	Files   []blockMapFile `xml:"File"`
+	XMLName    xml.Name       `xml:"BlockMap"`
+	NS         string         `xml:"xmlns,attr"`
+	HashMethod string         `xml:"HashMethod,attr"`
+	Files      []blockMapFile `xml:"File"`
 }
 
 // blockMapFile represents a file entry in the block map.
 type blockMapFile struct {
-	Name   string          `xml:"Name,attr"`
-	Size   uint64          `xml:"Size,attr"`
-	LfhSize uint64         `xml:"LfhSize,attr"`
-	Blocks []blockMapBlock `xml:"Block"`
+	Name    string          `xml:"Name,attr"`
+	Size    uint64          `xml:"Size,attr"`
+	LfhSize uint64          `xml:"LfhSize,attr"`
+	Blocks  []blockMapBlock `xml:"Block"`
 }
 
 // blockMapBlock represents a block within a file in the block map.

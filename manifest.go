@@ -1,18 +1,18 @@
 package msix
 
-// Manifest represents the full AppxManifest.xml structure.
-type Manifest struct {
-	Identity     Identity
-	Properties   Properties
-	Dependencies Dependencies
-	Resources    []Resource
-	Capabilities Capabilities
-	Applications []Application
-	Extensions   []PackageExtension
+// manifestData represents the full AppxManifest.xml structure (internal template data).
+type manifestData struct {
+	Identity     identityData
+	Properties   propertiesData
+	Dependencies dependenciesData
+	Resources    []resourceData
+	Capabilities capabilitiesData
+	Applications []applicationData
+	Extensions   []pkgExtData
 }
 
-// Identity represents the Package/Identity element.
-type Identity struct {
+// identityData represents the Package/Identity element.
+type identityData struct {
 	Name                  string
 	Version               string
 	Publisher             string
@@ -20,10 +20,10 @@ type Identity struct {
 	ResourceID            string // Optional
 }
 
-// Properties represents Package/Properties.
-type Properties struct {
+// propertiesData represents Package/Properties.
+type propertiesData struct {
 	DisplayName          string
-	PublisherDisplayName  string
+	PublisherDisplayName string
 	Logo                 string
 	Description          string
 	Framework            bool
@@ -32,29 +32,29 @@ type Properties struct {
 	ModificationPackage  bool // rescap6:ModificationPackage
 }
 
-// Dependencies represents Package/Dependencies.
-type Dependencies struct {
-	TargetDeviceFamilies []TargetDeviceFamily
-	PackageDependencies  []PackageDependency
+// dependenciesData represents Package/Dependencies.
+type dependenciesData struct {
+	TargetDeviceFamilies []targetDeviceFamilyData
+	PackageDependencies  []packageDependencyData
 }
 
-// TargetDeviceFamily represents a Dependencies/TargetDeviceFamily element.
-type TargetDeviceFamily struct {
+// targetDeviceFamilyData represents a Dependencies/TargetDeviceFamily element.
+type targetDeviceFamilyData struct {
 	Name             string
 	MinVersion       string
 	MaxVersionTested string
 }
 
-// PackageDependency represents a Dependencies/PackageDependency element.
-type PackageDependency struct {
-	Name         string
-	Publisher    string
-	MinVersion   string
+// packageDependencyData represents a Dependencies/PackageDependency element.
+type packageDependencyData struct {
+	Name       string
+	Publisher  string
+	MinVersion string
 }
 
-// Resource represents a Resources/Resource element.
-type Resource struct {
-	Language string
-	Scale    string // e.g., "100", "200"
+// resourceData represents a Resources/Resource element.
+type resourceData struct {
+	Language       string
+	Scale          string // e.g., "100", "200"
 	DXFeatureLevel string // e.g., "dx9"
 }

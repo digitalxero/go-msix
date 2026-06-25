@@ -2,219 +2,219 @@ package msix
 
 // --- desktop namespace extensions ---
 
-// FullTrustProcess represents desktop:FullTrustProcess.
-type FullTrustProcess struct {
-	GroupID     string
-	ParameterGroup *ParameterGroup
+// fullTrustProcessData represents desktop:FullTrustProcess.
+type fullTrustProcessData struct {
+	GroupID        string
+	ParameterGroup *parameterGroupData
 }
 
-// ParameterGroup within FullTrustProcess.
-type ParameterGroup struct {
+// parameterGroupData within FullTrustProcess.
+type parameterGroupData struct {
 	GroupID    string
 	Parameters string
 }
 
-// DesktopStartupTask represents desktop:StartupTask.
-type DesktopStartupTask struct {
+// desktopStartupTaskData represents desktop:StartupTask.
+type desktopStartupTaskData struct {
 	TaskID  string
 	Enabled bool
 }
 
-// ToastNotificationActivation represents desktop:ToastNotificationActivation.
-type ToastNotificationActivation struct {
+// toastNotificationActivationData represents desktop:ToastNotificationActivation.
+type toastNotificationActivationData struct {
 	ToastActivatorCLSID string
 }
 
-// SearchProtocolHandler represents desktop:SearchProtocolHandler.
-type SearchProtocolHandler struct {
+// searchProtocolHandlerData represents desktop:SearchProtocolHandler.
+type searchProtocolHandlerData struct {
 	DisplayName string
 }
 
 // --- desktop2 namespace extensions ---
 
-// AppPrinter represents desktop2:AppPrinter.
-type AppPrinter struct {
-	DisplayName     string
-	Parameters      string
+// appPrinterData represents desktop2:AppPrinter.
+type appPrinterData struct {
+	DisplayName string
+	Parameters  string
 }
 
-// SearchFilterHandler represents desktop2:SearchFilterHandler.
-type SearchFilterHandler struct {
+// searchFilterHandlerData represents desktop2:SearchFilterHandler.
+type searchFilterHandlerData struct {
 	CLSID       string
 	DisplayName string
 }
 
-// SearchPropertyHandler represents desktop2:SearchPropertyHandler.
-type SearchPropertyHandler struct {
+// searchPropertyHandlerData represents desktop2:SearchPropertyHandler.
+type searchPropertyHandlerData struct {
 	CLSID       string
 	DisplayName string
 }
 
-// FirewallRules represents desktop2:FirewallRules.
-type FirewallRules struct {
-	Rules []FirewallRule
+// firewallRulesData represents desktop2:FirewallRules.
+type firewallRulesData struct {
+	Rules []firewallRuleData
 }
 
-// FirewallRule within FirewallRules.
-type FirewallRule struct {
-	Direction string // "in", "out"
-	Protocol  string // "TCP", "UDP"
-	Profile   string // "domain", "private", "public", "all"
-	LocalPortMin string
-	LocalPortMax string
+// firewallRuleData within FirewallRules.
+type firewallRuleData struct {
+	Direction     string // "in", "out"
+	Protocol      string // "TCP", "UDP"
+	Profile       string // "domain", "private", "public", "all"
+	LocalPortMin  string
+	LocalPortMax  string
 	RemotePortMin string
 	RemotePortMax string
 }
 
-// DesktopEventLogging represents desktop2:DesktopEventLogging.
-type DesktopEventLogging struct {
+// desktopEventLoggingData represents desktop2:DesktopEventLogging.
+type desktopEventLoggingData struct {
 	ProviderGUID string
-	Channels     []EventLogChannel
+	Channels     []eventLogChannelData
 }
 
-// EventLogChannel within DesktopEventLogging.
-type EventLogChannel struct {
+// eventLogChannelData within DesktopEventLogging.
+type eventLogChannelData struct {
 	Name string
 }
 
 // --- desktop3 namespace extensions ---
 
-// AutoPlayHandler represents desktop3:AutoPlayHandler.
-type AutoPlayHandler struct {
-	InvokeActions []InvokeAction
+// autoPlayHandlerData represents desktop3:AutoPlayHandler.
+type autoPlayHandlerData struct {
+	InvokeActions []invokeActionData
 }
 
-// InvokeAction within AutoPlayHandler.
-type InvokeAction struct {
+// invokeActionData within AutoPlayHandler.
+type invokeActionData struct {
 	ActionDisplayName string
 	ProviderCLSID     string
 	ContentEvent      string
 	DeviceEvent       string
 }
 
-// CloudFiles represents desktop3:CloudFiles.
-type CloudFiles struct {
-	IconResource        string
-	CustomStateHandler  *CustomStateHandler
-	ThumbnailProviderHandler *ThumbnailProviderHandler
-	ExtendedPropertyHandler *ExtendedPropertyHandler
-	BannersHandler      *BannersHandler
-	ContentUriSource    *ContentUriSource
+// cloudFilesData represents desktop3:CloudFiles.
+type cloudFilesData struct {
+	IconResource             string
+	CustomStateHandler       *customStateHandlerData
+	ThumbnailProviderHandler *thumbnailProviderHandlerData
+	ExtendedPropertyHandler  *extendedPropertyHandlerData
+	BannersHandler           *bannersHandlerData
+	ContentUriSource         *contentUriSourceData
 }
 
-// CustomStateHandler within CloudFiles.
-type CustomStateHandler struct {
+// customStateHandlerData within CloudFiles.
+type customStateHandlerData struct {
 	CLSID string
 }
 
-// ThumbnailProviderHandler within CloudFiles.
-type ThumbnailProviderHandler struct {
+// thumbnailProviderHandlerData within CloudFiles.
+type thumbnailProviderHandlerData struct {
 	CLSID string
 }
 
-// ExtendedPropertyHandler within CloudFiles.
-type ExtendedPropertyHandler struct {
+// extendedPropertyHandlerData within CloudFiles.
+type extendedPropertyHandlerData struct {
 	CLSID string
 }
 
-// BannersHandler within CloudFiles.
-type BannersHandler struct {
+// bannersHandlerData within CloudFiles.
+type bannersHandlerData struct {
 	CLSID string
 }
 
-// ContentUriSource within CloudFiles.
-type ContentUriSource struct {
+// contentUriSourceData within CloudFiles.
+type contentUriSourceData struct {
 	CLSID string
 }
 
 // --- desktop4 namespace extensions ---
 
-// FileExplorerContextMenus represents desktop4:FileExplorerContextMenus.
-type FileExplorerContextMenus struct {
-	ItemTypes []FileExplorerItemType
+// fileExplorerContextMenusData represents desktop4:FileExplorerContextMenus.
+type fileExplorerContextMenusData struct {
+	ItemTypes []fileExplorerItemTypeData
 }
 
-// FileExplorerItemType within FileExplorerContextMenus.
-type FileExplorerItemType struct {
-	Type string // file extension or "*"
-	Verbs []Verb
+// fileExplorerItemTypeData within FileExplorerContextMenus.
+type fileExplorerItemTypeData struct {
+	Type  string // file extension or "*"
+	Verbs []verbData
 }
 
-// Verb within FileExplorerItemType.
-type Verb struct {
-	ID          string
-	CLSID       string
+// verbData within FileExplorerItemType.
+type verbData struct {
+	ID    string
+	CLSID string
 }
 
 // --- desktop6 namespace extensions ---
 
-// DesktopService represents desktop6:Service.
-type DesktopService struct {
-	Name        string
-	StartupType string // "auto", "manual", "disabled"
+// desktopServiceData represents desktop6:Service.
+type desktopServiceData struct {
+	Name         string
+	StartupType  string // "auto", "manual", "disabled"
 	StartAccount string // "localSystem", "localService", "networkService"
 }
 
 // --- desktop7 namespace extensions ---
 
-// ApprovedShellExtension represents desktop7:ApprovedShellExtension.
-type ApprovedShellExtension struct {
+// approvedShellExtensionData represents desktop7:ApprovedShellExtension.
+type approvedShellExtensionData struct {
 	CLSID string
 }
 
-// ControlPanelItem represents desktop7:ControlPanelItem.
-type ControlPanelItem struct {
+// controlPanelItemData represents desktop7:ControlPanelItem.
+type controlPanelItemData struct {
 	SystemApplicationName string
 }
 
-// ServiceDesktop7 represents desktop7:Service.
-type ServiceDesktop7 struct {
-	Name        string
-	StartupType string
+// serviceDesktop7Data represents desktop7:Service.
+type serviceDesktop7Data struct {
+	Name         string
+	StartupType  string
 	StartAccount string
-	Arguments   string
-}
-
-// Shortcut represents desktop7:Shortcut.
-type Shortcut struct {
-	File         string
-	Icon         string
 	Arguments    string
-	DisplayName  string
-	Description  string
 }
 
-// ApplicationRegistration represents desktop7:ApplicationRegistration.
-type ApplicationRegistration struct{}
-
-// DesktopAppMigration represents desktop7:DesktopAppMigration.
-type DesktopAppMigration struct {
-	DesktopApps []DesktopApp
+// shortcutData represents desktop7:Shortcut.
+type shortcutData struct {
+	File        string
+	Icon        string
+	Arguments   string
+	DisplayName string
+	Description string
 }
 
-// DesktopApp within DesktopAppMigration.
-type DesktopApp struct {
-	AumID       string
+// applicationRegistrationData represents desktop7:ApplicationRegistration.
+type applicationRegistrationData struct{}
+
+// desktopAppMigrationData represents desktop7:DesktopAppMigration.
+type desktopAppMigrationData struct {
+	DesktopApps []desktopAppData
+}
+
+// desktopAppData within DesktopAppMigration.
+type desktopAppData struct {
+	AumID        string
 	ShortcutPath string
 }
 
-// SystemFileAssociation represents desktop7:SystemFileAssociation.
-type SystemFileAssociation struct {
-	Extension string
-	FullDetails string
+// systemFileAssociationData represents desktop7:SystemFileAssociation.
+type systemFileAssociationData struct {
+	Extension      string
+	FullDetails    string
 	PreviewDetails string
-	PreviewTitle string
-	TileInfo string
+	PreviewTitle   string
+	TileInfo       string
 }
 
 // --- desktop9 namespace extensions ---
 
-// FileExplorerClassicContextMenuHandler represents desktop9:FileExplorerClassicContextMenuHandler.
-type FileExplorerClassicContextMenuHandler struct {
+// fileExplorerClassicContextMenuHandlerData represents desktop9:FileExplorerClassicContextMenuHandler.
+type fileExplorerClassicContextMenuHandlerData struct {
 	CLSID string
 }
 
-// FileExplorerClassicDragDropContextMenuHandler represents desktop9:FileExplorerClassicDragDropContextMenuHandler.
-type FileExplorerClassicDragDropContextMenuHandler struct {
+// fileExplorerClassicDragDropContextMenuHandlerData represents desktop9:FileExplorerClassicDragDropContextMenuHandler.
+type fileExplorerClassicDragDropContextMenuHandlerData struct {
 	CLSID string
 }

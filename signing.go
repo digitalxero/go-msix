@@ -47,7 +47,7 @@ type algorithmIdentifier struct {
 
 // spcIndirectDataContent is the ASN.1 structure embedded in the CMS SignedData.
 type spcIndirectDataContent struct {
-	Data    spcAttributeTypeAndValue
+	Data          spcAttributeTypeAndValue
 	MessageDigest digestInfo
 }
 
@@ -121,7 +121,7 @@ func buildDigestBlob(axpc, axcd, axct, axbm, axci [32]byte) []byte {
 }
 
 // createSignature creates the AppxSignature.p7x content.
-func createSignature(axpc, axcd, axct, axbm, axci [32]byte, opts *SignOptions) ([]byte, error) {
+func createSignature(axpc, axcd, axct, axbm, axci [32]byte, creds *signingCreds) ([]byte, error) {
 	digestBlob := buildDigestBlob(axpc, axcd, axct, axbm, axci)
 
 	// Hash the digest blob for the SpcIndirectDataContent.
@@ -171,12 +171,12 @@ func createSignature(axpc, axcd, axct, axbm, axci [32]byte, opts *SignOptions) (
 	signedData.SetEncryptionAlgorithm(pkcs7.OIDEncryptionAlgorithmRSA)
 
 	// Add the signer.
-	if err := signedData.AddSigner(opts.Certificate, opts.PrivateKey, pkcs7.SignerInfoConfig{}); err != nil {
+	if err := signedData.AddSigner(creds.cert, creds.key, pkcs7.SignerInfoConfig{}); err != nil {
 		return nil, fmt.Errorf("msix: adding signer: %w", err)
 	}
 
 	// Add chain certificates.
-	for _, cert := range opts.CertChain {
+	for _, cert := range creds.chain {
 		signedData.AddCertificate(cert)
 	}
 
