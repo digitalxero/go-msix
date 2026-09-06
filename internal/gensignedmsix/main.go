@@ -100,6 +100,7 @@ func main() {
 			AddApplication(msix.NewApplication().WithID("App").
 				WithExecutable("sample.exe").WithEntryPoint("Windows.FullTrustApplication").
 				WithVisualElements(msix.NewVisualElements().WithDisplayName("go-msix Signed Sample").
+					WithDescription("go-msix signed sample package").
 					WithBackgroundColor("transparent").WithSquare150x150Logo("assets/logo.png").
 					WithSquare44x44Logo("assets/logo.png").Build()).Build()).
 			AddFileFromBytes("sample.exe", []byte("MZ go-msix signed sample payload")).

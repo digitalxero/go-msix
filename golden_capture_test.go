@@ -37,6 +37,7 @@ func goldenBaseBuilder() Builder {
 			WithEntryPoint("Windows.FullTrustApplication").
 			WithVisualElements(NewVisualElements().
 				WithDisplayName("Golden App").
+				WithDescription("Golden test application").
 				WithBackgroundColor("#464646").
 				WithSquare150x150Logo("Assets/150.png").
 				WithSquare44x44Logo("Assets/44.png").
@@ -89,9 +90,9 @@ func goldenBuildUnsigned(t *testing.T, add func(Builder)) []byte {
 // 2026-06-24) described a container Windows rejects with HashMismatch when
 // signed.
 var goldenUnsignedHashes = map[string]string{
-	"single":        "7bd32efa9078ca17311199c758ec4715c4e9bf9c2052709fdeafb6e0e2ee0e2c",
-	"multiblock":    "fec537e1be2a418bfc8e7f2d948ec191513675d2d27f55c7be8ddc9f0722ffeb",
-	"subdirs_empty": "9d8ef1d03f80a41a4466183df3f1e55a635a1cf6ba4d37b7690c022cda2c54c1",
+	"single":        "871c40f83d509f3807573bd17b9008b4dcbdee00a2ff0a8c8cab9d5d84186617",
+	"multiblock":    "60ef840f57b44378de017803acbc96c7b101c14cf5d4eb4590fc8dc1e124cf9b",
+	"subdirs_empty": "272d44dbc0c2449fdc290cffdc06986b6a961396142831c1bc661048f4cb7326",
 }
 
 // TestUnsignedByteEquality asserts the unsigned package output is byte-identical to

@@ -221,6 +221,11 @@ func validateManifest(m *manifestData) error {
 		if ve.DisplayName == "" {
 			errs = append(errs, fmt.Errorf("msix: application[%d] visual elements display name is required", i))
 		}
+		// The uap:VisualElements schema requires Description; Windows rejects
+		// deployment with 0xC00CE020 when it is missing.
+		if ve.Description == "" {
+			errs = append(errs, fmt.Errorf("msix: application[%d] visual elements description is required", i))
+		}
 		if ve.BackgroundColor == "" {
 			errs = append(errs, fmt.Errorf("msix: application[%d] visual elements background color is required", i))
 		}

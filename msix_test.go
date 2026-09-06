@@ -41,7 +41,7 @@ func stdManifestBuilder() msix.Builder {
 		AddApplication(msix.NewApplication().
 			WithID("App").WithExecutable("App.exe").
 			WithVisualElements(msix.NewVisualElements().
-				WithDisplayName("Test App").WithBackgroundColor("#464646").
+				WithDisplayName("Test App").WithDescription("Test application").WithBackgroundColor("#464646").
 				WithSquare150x150Logo("Assets/150.png").WithSquare44x44Logo("Assets/44.png").
 				Build()).
 			Build())
