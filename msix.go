@@ -3,6 +3,7 @@ package msix
 import (
 	"archive/zip"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -347,23 +348,39 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 		return fmt.Errorf("msix: compressing block map: %w", err)
 	}
 
-	// Unsigned content types (no AppxSignature.p7x override) — used for the AXCT digest
-	// and for the unsigned layout that AXPC/AXCD are computed over.
-	unsignedNames := append(append([]string{}, names...), "AppxBlockMap.xml")
-	unsignedContentTypes, err := marshalContentTypes(unsignedNames)
+	// Hash the final content types, including the signature declaration.
+	// Only AppxSignature.p7x itself is excluded from the digest layout.
+	names = append(names, "AppxBlockMap.xml", "AppxSignature.p7x")
+	contentTypes, err := marshalContentTypes(names)
 	if err != nil {
 		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	unsignedContentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: unsignedContentTypes}, true)
+	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, true)
 	if err != nil {
 		return fmt.Errorf("msix: preparing content types: %w", err)
 	}
 
 	axbm := hashBytes(blockMapBytes)
-	axct := hashBytes(unsignedContentTypes)
-	var axci [32]byte // no CodeIntegrity.cat
+	axct := hashBytes(contentTypes)
+	var axci *[32]byte
+	for _, entry := range core {
+		if entry.name != "AppxMetadata/CodeIntegrity.cat" {
+			continue
+		}
+		r, err := entry.source.open()
+		if err != nil {
+			return fmt.Errorf("msix: opening code integrity catalog: %w", err)
+		}
+		h := sha256.New()
+		_, readErr := io.Copy(h, r)
+		if err := errors.Join(readErr, r.Close()); err != nil {
+			return fmt.Errorf("msix: hashing code integrity catalog: %w", err)
+		}
+		digest := [32]byte(h.Sum(nil))
+		axci = &digest
+	}
 
-	unsignedLayout := append(append([]*compressedEntry{}, core...), blockMapEntry, unsignedContentTypesEntry)
+	unsignedLayout := append(core, blockMapEntry, contentTypesEntry)
 	axpc, axcd, err := computeDigests(unsignedLayout)
 	if err != nil {
 		return fmt.Errorf("msix: computing digests: %w", err)
@@ -379,19 +396,7 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 		return fmt.Errorf("msix: preparing signature: %w", err)
 	}
 
-	// Signed content types include the AppxSignature.p7x override; this is what ships.
-	signedNames := append(append([]string{}, unsignedNames...), "AppxSignature.p7x")
-	signedContentTypes, err := marshalContentTypes(signedNames)
-	if err != nil {
-		return fmt.Errorf("msix: generating content types: %w", err)
-	}
-	signedContentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: signedContentTypes}, true)
-	if err != nil {
-		return fmt.Errorf("msix: preparing content types: %w", err)
-	}
-
-	final := append(append([]*compressedEntry{}, core...), blockMapEntry, signatureEntry, signedContentTypesEntry)
-	return writeZip(w, final)
+	return writeZip(w, append(unsignedLayout, signatureEntry))
 }
 
 // writeZip streams the given entries into a new zip written to w.

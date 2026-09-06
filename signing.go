@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/binary"
 	"fmt"
 	"os"
 
@@ -15,11 +14,11 @@ import (
 
 // APPX digest tags.
 const (
-	tagAXPC uint32 = 0x41585043 // Hash of local file headers + data
-	tagAXCD uint32 = 0x41584344 // Hash of central directory
-	tagAXCT uint32 = 0x41584354 // Hash of [Content_Types].xml
-	tagAXBM uint32 = 0x4158424D // Hash of AppxBlockMap.xml
-	tagAXCI uint32 = 0x41584349 // Hash of CodeIntegrity.cat
+	tagAXPC = "AXPC" // Hash of local file headers + data
+	tagAXCD = "AXCD" // Hash of central directory + end records
+	tagAXCT = "AXCT" // Hash of [Content_Types].xml
+	tagAXBM = "AXBM" // Hash of AppxBlockMap.xml
+	tagAXCI = "AXCI" // Hash of CodeIntegrity.cat
 )
 
 // P7X magic header.
@@ -53,19 +52,18 @@ type spcIndirectDataContent struct {
 
 type spcAttributeTypeAndValue struct {
 	Type  asn1.ObjectIdentifier
-	Value spcSipInfo `asn1:"tag:0,explicit"`
+	Value spcSipInfo
 }
 
-// spcSipInfo holds the APPX digest blob.
+// spcSipInfo identifies the APPX subject interface package.
 type spcSipInfo struct {
-	Version    int
-	SipGUID    []byte
-	Reserved1  int
-	Reserved2  int
-	Reserved3  int
-	Reserved4  int
-	Reserved5  int
-	AppxDigest []byte
+	Version   int
+	SipGUID   []byte
+	Reserved1 int
+	Reserved2 int
+	Reserved3 int
+	Reserved4 int
+	Reserved5 int
 }
 
 // LoadPFX loads a PFX/P12 file and returns the certificate, private key, and any chain certificates.
@@ -93,26 +91,28 @@ func hashBytes(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }
 
-// buildDigestBlob creates the 184-byte APPX digest blob.
-// Format: "APPX" (4 bytes) + 5 entries of (4-byte tag + 32-byte hash) = 4 + 5*36 = 184 bytes.
-func buildDigestBlob(axpc, axcd, axct, axbm, axci [32]byte) []byte {
-	blob := make([]byte, 184)
-	copy(blob[0:4], []byte("APPX"))
-
-	entries := []struct {
-		tag  uint32
+// buildDigestBlob creates the APPX digest table. AXCI is present only when
+// the package contains AppxMetadata/CodeIntegrity.cat.
+func buildDigestBlob(axpc, axcd, axct, axbm [32]byte, axci *[32]byte) []byte {
+	type entry struct {
+		tag  string
 		hash [32]byte
-	}{
+	}
+	entries := []entry{
 		{tagAXPC, axpc},
 		{tagAXCD, axcd},
 		{tagAXCT, axct},
 		{tagAXBM, axbm},
-		{tagAXCI, axci},
+	}
+	if axci != nil {
+		entries = append(entries, entry{tagAXCI, *axci})
 	}
 
+	blob := make([]byte, 4+36*len(entries))
+	copy(blob, "APPX")
 	offset := 4
 	for _, e := range entries {
-		binary.LittleEndian.PutUint32(blob[offset:offset+4], e.tag)
+		copy(blob[offset:offset+4], e.tag)
 		copy(blob[offset+4:offset+36], e.hash[:])
 		offset += 36
 	}
@@ -121,29 +121,25 @@ func buildDigestBlob(axpc, axcd, axct, axbm, axci [32]byte) []byte {
 }
 
 // createSignature creates the AppxSignature.p7x content.
-func createSignature(axpc, axcd, axct, axbm, axci [32]byte, creds *signingCreds) ([]byte, error) {
+func createSignature(axpc, axcd, axct, axbm [32]byte, axci *[32]byte, creds *signingCreds) ([]byte, error) {
 	digestBlob := buildDigestBlob(axpc, axcd, axct, axbm, axci)
 
-	// Hash the digest blob for the SpcIndirectDataContent.
-	digestHash := sha256.Sum256(digestBlob)
-
 	// Build the SpcIndirectDataContent.
-	// The SipGUID for APPX is {4BDFC50A-28E2-4F10-A251-4181E087C42C}
+	// APPX SIP identifier in the byte order used by SignTool.
 	sipGUID := []byte{
-		0x0A, 0xC5, 0xDF, 0x4B,
-		0xE2, 0x28,
-		0x10, 0x4F,
-		0xA2, 0x51,
-		0x41, 0x81, 0xE0, 0x87, 0xC4, 0x2C,
+		0x4B, 0xDF, 0xC5, 0x0A,
+		0x07, 0xCE,
+		0xE2, 0x4D,
+		0xB7, 0x6E,
+		0x23, 0xC8, 0x39, 0xA0, 0x9F, 0xD1,
 	}
 
 	indirect := spcIndirectDataContent{
 		Data: spcAttributeTypeAndValue{
 			Type: oidSpcSipInfo,
 			Value: spcSipInfo{
-				Version:    0x01000000,
-				SipGUID:    sipGUID,
-				AppxDigest: digestBlob,
+				Version: 0x01010000,
+				SipGUID: sipGUID,
 			},
 		},
 		MessageDigest: digestInfo{
@@ -151,7 +147,7 @@ func createSignature(axpc, axcd, axct, axbm, axci [32]byte, creds *signingCreds)
 				Algorithm:  oidSHA256,
 				Parameters: asn1.RawValue{Tag: asn1.TagNull},
 			},
-			Digest: digestHash[:],
+			Digest: digestBlob,
 		},
 	}
 
@@ -160,15 +156,21 @@ func createSignature(axpc, axcd, axct, axbm, axci [32]byte, creds *signingCreds)
 		return nil, fmt.Errorf("msix: marshaling SpcIndirectDataContent: %w", err)
 	}
 
-	// Create PKCS7 SignedData.
-	signedData, err := pkcs7.NewSignedData(indirectBytes)
+	// Authenticode hashes the sequence contents, excluding its outer tag/length,
+	// but embeds the complete sequence rather than a CMS octet string.
+	var indirectContent asn1.RawValue
+	if _, err := asn1.Unmarshal(indirectBytes, &indirectContent); err != nil {
+		return nil, fmt.Errorf("msix: decoding SpcIndirectDataContent: %w", err)
+	}
+	signedData, err := pkcs7.NewSignedData(indirectContent.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("msix: creating SignedData: %w", err)
 	}
 
-	// Set the content type to SPC_INDIRECT_DATA_OBJID.
+	contentInfo := &signedData.GetSignedData().ContentInfo
+	contentInfo.ContentType = oidSpcIndirectData
+	contentInfo.Content = asn1.RawValue{Class: 2, Tag: 0, IsCompound: true, Bytes: indirectBytes}
 	signedData.SetDigestAlgorithm(pkcs7.OIDDigestAlgorithmSHA256)
-	signedData.SetEncryptionAlgorithm(pkcs7.OIDEncryptionAlgorithmRSA)
 
 	// Add the signer.
 	if err := signedData.AddSigner(creds.cert, creds.key, pkcs7.SignerInfoConfig{}); err != nil {

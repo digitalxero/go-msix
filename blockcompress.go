@@ -5,8 +5,6 @@ import (
 	"bufio"
 	"compress/flate"
 	"crypto/sha256"
-	"encoding/binary"
-	"fmt"
 	"hash"
 	"hash/crc32"
 	"io"
@@ -209,7 +207,7 @@ func (e *compressedEntry) zipFileEntry() zipFileEntry {
 }
 
 // computeDigests reproduces the unsigned package byte-for-byte through a discarding
-// hash splitter to obtain AXPC (local headers + data) and AXCD (central directory),
+// hash splitter to obtain AXPC (local headers + data) and AXCD (central directory + end records),
 // without buffering the package payload. Only the central directory is held in memory.
 func computeDigests(unsignedEntries []*compressedEntry) (axpc, axcd [32]byte, err error) {
 	// The central directory begins after every local record, where each local record
@@ -231,14 +229,7 @@ func computeDigests(unsignedEntries []*compressedEntry) (axpc, axcd [32]byte, er
 	}
 	copy(axpc[:], s.axpc.Sum(nil))
 
-	cdSize, err := centralDirSize(s.tail)
-	if err != nil {
-		return axpc, axcd, err
-	}
-	if cdSize > uint64(len(s.tail)) {
-		return axpc, axcd, fmt.Errorf("central directory size %d exceeds tail %d", cdSize, len(s.tail))
-	}
-	axcd = sha256.Sum256(s.tail[:cdSize])
+	axcd = sha256.Sum256(s.tail)
 	return axpc, axcd, nil
 }
 
@@ -283,7 +274,7 @@ func writeEntry(zw *zip.Writer, e *compressedEntry) error {
 
 // digestSplitter routes the first cdOffset bytes (all local headers + data) into the
 // AXPC hash and buffers the remainder (central directory + EOCD trailers) so AXCD can
-// be computed over just the central directory. Splitting by absolute byte offset is
+// include the central directory and its end records. Splitting by absolute byte offset is
 // robust to the bufio buffering inside zip.Writer (a flag flipped around Close() is
 // not, because Close flushes buffered local-record bytes together with the central
 // directory). Only the central directory (∝ file count, not payload size) is buffered.
@@ -308,37 +299,4 @@ func (s *digestSplitter) Write(p []byte) (int, error) {
 	}
 	s.n += int64(total)
 	return total, nil
-}
-
-// centralDirSize returns the size of the central directory at the start of tail,
-// where tail is [central directory || optional ZIP64 EOCD record || optional ZIP64
-// locator || EOCD]. It uses only relative positions so it works on the buffered tail
-// (which does not start at offset 0 of the archive), including ZIP64 archives.
-func centralDirSize(tail []byte) (uint64, error) {
-	const eocdLen = 22
-	if len(tail) < eocdLen {
-		return 0, io.ErrUnexpectedEOF
-	}
-	eocd := -1
-	for i := len(tail) - eocdLen; i >= 0; i-- {
-		if tail[i] == 0x50 && tail[i+1] == 0x4b && tail[i+2] == 0x05 && tail[i+3] == 0x06 {
-			eocd = i
-			break
-		}
-	}
-	if eocd == -1 {
-		return 0, io.ErrUnexpectedEOF
-	}
-	// ZIP64: a locator sits 20 bytes before the EOCD, and the 56-byte ZIP64 EOCD
-	// record sits immediately before the locator.
-	if eocd >= 20 {
-		loc := eocd - 20
-		if tail[loc] == 0x50 && tail[loc+1] == 0x4b && tail[loc+2] == 0x06 && tail[loc+3] == 0x07 && loc >= 56 {
-			z := loc - 56
-			if tail[z] == 0x50 && tail[z+1] == 0x4b && tail[z+2] == 0x06 && tail[z+3] == 0x06 {
-				return binary.LittleEndian.Uint64(tail[z+40 : z+48]), nil
-			}
-		}
-	}
-	return uint64(binary.LittleEndian.Uint32(tail[eocd+12 : eocd+16])), nil
 }

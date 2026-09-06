@@ -45,8 +45,7 @@ func TestCompressSourceToSpill_OracleParity(t *testing.T) {
 }
 
 // TestSignedDigests_MatchBufferedReference verifies the streaming digest replay
-// computes AXPC/AXCD identical to the original "build unsigned to a buffer, then hash
-// [:cdOffset] and [cdOffset:cdOffset+cdSize]" approach.
+// computes AXPC over file records and AXCD over the central directory including EOCD.
 func TestSignedDigests_MatchBufferedReference(t *testing.T) {
 	withFiles := func(b Builder) Builder {
 		return b.AddFileFromBytes("App.exe", []byte("MZ")).
@@ -54,15 +53,14 @@ func TestSignedDigests_MatchBufferedReference(t *testing.T) {
 			AddFileFromBytes("empty.txt", nil)
 	}
 
-	// Reference: build the unsigned package (streaming) into a buffer and apply the
-	// original digest formula.
+	// Reference: build the unsigned package into a buffer and hash both regions.
 	var buf bytes.Buffer
 	require.NoError(t, withFiles(goldenBaseBuilder()).Build(context.Background(), &buf))
 	unsigned := buf.Bytes()
-	cdOff, cdSize, err := findCentralDirectoryOffset(unsigned)
+	cdOff, _, err := findCentralDirectoryOffset(unsigned)
 	require.NoError(t, err)
 	wantAXPC := sha256.Sum256(unsigned[:cdOff])
-	wantAXCD := sha256.Sum256(unsigned[cdOff : cdOff+cdSize])
+	wantAXCD := sha256.Sum256(unsigned[cdOff:])
 
 	// New: reconstruct the unsigned layout and run the streaming digest replay.
 	b := withFiles(goldenBaseBuilder()).(*builder)
@@ -87,6 +85,27 @@ func TestSignedDigests_MatchBufferedReference(t *testing.T) {
 
 	assert.Equal(t, wantAXPC, gotAXPC, "AXPC mismatch between streaming replay and buffered reference")
 	assert.Equal(t, wantAXCD, gotAXCD, "AXCD mismatch between streaming replay and buffered reference")
+}
+
+func TestSignedDigestsZIP64(t *testing.T) {
+	entry, err := compressSourceToSpill("empty", bytesFileSource{}, true, t.TempDir())
+	require.NoError(t, err)
+	entries := make([]*compressedEntry, 1<<16)
+	for i := range entries {
+		entries[i] = entry
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, writeZip(&buf, entries))
+	data := buf.Bytes()
+	require.Equal(t, []byte("PK\x06\x07"), data[len(data)-42:len(data)-38], "ZIP64 locator")
+	cdOffset, _, err := findCentralDirectoryOffset(data)
+	require.NoError(t, err)
+
+	axpc, axcd, err := computeDigests(entries)
+	require.NoError(t, err)
+	require.Equal(t, sha256.Sum256(data[:cdOffset]), axpc)
+	require.Equal(t, sha256.Sum256(data[cdOffset:]), axcd, "AXCD includes ZIP64 end records")
 }
 
 // TestSignedPackage_DeterministicExceptSignature verifies that two signed builds
