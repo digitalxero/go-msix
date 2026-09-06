@@ -76,7 +76,7 @@ func TestSignedDigests_MatchBufferedReference(t *testing.T) {
 	unsignedNames := append(append([]string{}, names...), "AppxBlockMap.xml")
 	ct, err := marshalContentTypes(unsignedNames)
 	require.NoError(t, err)
-	ctEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: ct}, true)
+	ctEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: ct}, false)
 	require.NoError(t, err)
 
 	layout := append(append([]*compressedEntry{}, core...), blockMapEntry, ctEntry)

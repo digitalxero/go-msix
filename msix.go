@@ -1,7 +1,6 @@
 package msix
 
 import (
-	"archive/zip"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -326,7 +325,7 @@ func (b *builder) buildUnsigned(w io.Writer, manifestData []byte) error {
 	if err != nil {
 		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, true)
+	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, false)
 	if err != nil {
 		return fmt.Errorf("msix: preparing content types: %w", err)
 	}
@@ -355,7 +354,7 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 	if err != nil {
 		return fmt.Errorf("msix: generating content types: %w", err)
 	}
-	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, true)
+	contentTypesEntry, err := c.compress("[Content_Types].xml", bytesFileSource{data: contentTypes}, false)
 	if err != nil {
 		return fmt.Errorf("msix: preparing content types: %w", err)
 	}
@@ -391,7 +390,7 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 		return fmt.Errorf("msix: creating signature: %w", err)
 	}
 
-	signatureEntry, err := c.compress("AppxSignature.p7x", bytesFileSource{data: sig}, true)
+	signatureEntry, err := c.compress("AppxSignature.p7x", bytesFileSource{data: sig}, false)
 	if err != nil {
 		return fmt.Errorf("msix: preparing signature: %w", err)
 	}
@@ -399,15 +398,9 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 	return writeZip(w, append(unsignedLayout, signatureEntry))
 }
 
-// writeZip streams the given entries into a new zip written to w.
+// writeZip streams the given entries into a new canonical-form zip written to w.
 func writeZip(w io.Writer, entries []*compressedEntry) error {
-	zw := zip.NewWriter(w)
-	for _, e := range entries {
-		if err := writeEntry(zw, e); err != nil {
-			return fmt.Errorf("msix: writing %s: %w", e.name, err)
-		}
-	}
-	return zw.Close()
+	return writeCanonicalZip(w, entries)
 }
 
 func normalizePackagePath(p string) string {

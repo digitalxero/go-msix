@@ -81,13 +81,17 @@ func goldenBuildUnsigned(t *testing.T, add func(Builder)) []byte {
 	return buf.Bytes()
 }
 
-// goldenUnsignedHashes are sha256 of the unsigned package bytes produced by the
-// pre-streaming-rewrite implementation. The streaming rewrite AND the builder-API
-// conversion MUST reproduce these byte-for-byte. Captured 2026-06-24.
+// goldenUnsignedHashes are sha256 of the unsigned package bytes; any refactor
+// MUST reproduce them byte-for-byte. Recaptured 2026-09-06 for the canonical
+// MSIX container form (central directory "version made by" 4.5, ZIP64 end
+// records with a sentinel EOCD stub, deflated [Content_Types].xml) that
+// Windows AppxSIP requires — the previous classic-zip goldens (captured
+// 2026-06-24) described a container Windows rejects with HashMismatch when
+// signed.
 var goldenUnsignedHashes = map[string]string{
-	"single":        "a8f780e01331aeb9a6017b0c9d079306167eb168ae7e2880ed2f66e81878f307",
-	"multiblock":    "8d2a67265b89012cc7968f89aea0a3f39d5f688647f8715bc151acf08c61d822",
-	"subdirs_empty": "4b7dc30dad7fe110b1bfc7a9a280aed64aeca9ad3b8d9933682aa6a0c94caa99",
+	"single":        "7bd32efa9078ca17311199c758ec4715c4e9bf9c2052709fdeafb6e0e2ee0e2c",
+	"multiblock":    "fec537e1be2a418bfc8e7f2d948ec191513675d2d27f55c7be8ddc9f0722ffeb",
+	"subdirs_empty": "9d8ef1d03f80a41a4466183df3f1e55a635a1cf6ba4d37b7690c022cda2c54c1",
 }
 
 // TestUnsignedByteEquality asserts the unsigned package output is byte-identical to

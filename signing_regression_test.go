@@ -60,25 +60,55 @@ func TestSignedPackageDigests(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "AppxSignature.p7x", r.File[len(r.File)-1].Name)
 
-			// Remove only the signature. Copy preserves the compressed bytes and
-			// recreates the central directory and EOCD with unsigned offsets/counts.
-			var unsigned bytes.Buffer
-			zw := zip.NewWriter(&unsigned)
-			for _, f := range r.File {
-				if f.Name != "AppxSignature.p7x" {
-					require.NoError(t, zw.Copy(f))
+			// Reconstruct the unsigned view the way a verifier (AppxSIP /
+			// osslsigncode) does: drop the signature's local record and CD
+			// entry, and rewrite the ZIP64 end records with unsigned
+			// counts/size/offset. The file must be in the canonical MSIX
+			// container form: ZIP64 EOCD + locator + sentinel EOCD stub.
+			data := buf.Bytes()
+			stub := data[len(data)-22:]
+			require.Equal(t, []byte("PK\x05\x06"), stub[:4])
+			require.Equal(t, uint16(0xFFFF), binary.LittleEndian.Uint16(stub[8:10]), "EOCD stub must use sentinel counts")
+			loc := data[len(data)-42 : len(data)-22]
+			require.Equal(t, []byte("PK\x06\x07"), loc[:4], "ZIP64 locator must be present")
+			z64 := binary.LittleEndian.Uint64(loc[8:16])
+			require.Equal(t, []byte("PK\x06\x06"), data[z64:z64+4], "ZIP64 EOCD must be present")
+			cdSize := binary.LittleEndian.Uint64(data[z64+40 : z64+48])
+			cdOffset := binary.LittleEndian.Uint64(data[z64+48 : z64+56])
+
+			// Locate the signature's CD entry and local record.
+			sigLocal, sigEntryStart, sigEntryLen := uint64(0), uint64(0), uint64(0)
+			for pos := cdOffset; pos < cdOffset+cdSize; {
+				require.Equal(t, []byte("PK\x01\x02"), data[pos:pos+4])
+				nameLen := uint64(binary.LittleEndian.Uint16(data[pos+28 : pos+30]))
+				extraLen := uint64(binary.LittleEndian.Uint16(data[pos+30 : pos+32]))
+				entryLen := 46 + nameLen + extraLen
+				if string(data[pos+46:pos+46+nameLen]) == "AppxSignature.p7x" {
+					sigLocal = uint64(binary.LittleEndian.Uint32(data[pos+42 : pos+46]))
+					sigEntryStart, sigEntryLen = pos, entryLen
 				}
+				pos += entryLen
 			}
-			require.NoError(t, zw.Close())
-			data := unsigned.Bytes()
-			end := data[len(data)-22:]
-			require.Equal(t, []byte("PK\x05\x06"), end[:4])
-			cdOffset := binary.LittleEndian.Uint32(end[16:20])
-			require.Equal(t, buf.Bytes()[:cdOffset], data[:cdOffset], "signed file records must not change")
+			require.NotZero(t, sigEntryLen, "signature CD entry not found")
+
+			var unsigned bytes.Buffer
+			unsigned.Write(data[cdOffset:sigEntryStart])
+			unsigned.Write(data[sigEntryStart+sigEntryLen : cdOffset+cdSize])
+			unsignedCDSize := uint64(unsigned.Len())
+			z64rec := append([]byte{}, data[z64:z64+56]...)
+			binary.LittleEndian.PutUint64(z64rec[24:32], binary.LittleEndian.Uint64(data[z64+24:z64+32])-1)
+			binary.LittleEndian.PutUint64(z64rec[32:40], binary.LittleEndian.Uint64(data[z64+32:z64+40])-1)
+			binary.LittleEndian.PutUint64(z64rec[40:48], unsignedCDSize)
+			binary.LittleEndian.PutUint64(z64rec[48:56], sigLocal)
+			unsigned.Write(z64rec)
+			unsignedLoc := append([]byte{}, loc...)
+			binary.LittleEndian.PutUint64(unsignedLoc[8:16], sigLocal+unsignedCDSize)
+			unsigned.Write(unsignedLoc)
+			unsigned.Write(stub)
 
 			expected := map[string][32]byte{
-				"AXPC": sha256.Sum256(data[:cdOffset]),
-				"AXCD": sha256.Sum256(data[cdOffset:]),
+				"AXPC": sha256.Sum256(data[:sigLocal]),
+				"AXCD": sha256.Sum256(unsigned.Bytes()),
 				"AXCT": sha256.Sum256(parts["[Content_Types].xml"]),
 				"AXBM": sha256.Sum256(parts["AppxBlockMap.xml"]),
 			}

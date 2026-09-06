@@ -218,58 +218,13 @@ func computeDigests(unsignedEntries []*compressedEntry) (axpc, axcd [32]byte, er
 	}
 
 	s := &digestSplitter{cdOffset: cdOffset, axpc: sha256.New()}
-	zw := zip.NewWriter(s)
-	for _, e := range unsignedEntries {
-		if err := writeEntry(zw, e); err != nil {
-			return axpc, axcd, err
-		}
-	}
-	if err := zw.Close(); err != nil {
+	if err := writeCanonicalZip(s, unsignedEntries); err != nil {
 		return axpc, axcd, err
 	}
 	copy(axpc[:], s.axpc.Sum(nil))
 
 	axcd = sha256.Sum256(s.tail)
 	return axpc, axcd, nil
-}
-
-// writeEntry emits one entry into zw via CreateRaw, matching the header layout of the
-// original hashingZipWriter exactly, then streams the entry's bytes (compressed spill
-// for Deflate, source bytes for Store) into the raw writer.
-func writeEntry(zw *zip.Writer, e *compressedEntry) error {
-	header := &zip.FileHeader{
-		Name:               e.name,
-		Method:             e.method,
-		CRC32:              e.crc32,
-		CompressedSize64:   e.compressedSize,
-		UncompressedSize64: e.uncompressedSize,
-	}
-	if e.compressedSize < 0xFFFFFFFF {
-		header.CompressedSize = uint32(e.compressedSize)
-	}
-	if e.uncompressedSize < 0xFFFFFFFF {
-		header.UncompressedSize = uint32(e.uncompressedSize)
-	}
-	prepareHeader(header)
-
-	w, err := zw.CreateRaw(header)
-	if err != nil {
-		return err
-	}
-
-	var src io.ReadCloser
-	if e.spillPath != "" {
-		src, err = os.Open(e.spillPath)
-	} else {
-		src, err = e.source.open()
-	}
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	_, err = io.Copy(w, src)
-	return err
 }
 
 // digestSplitter routes the first cdOffset bytes (all local headers + data) into the

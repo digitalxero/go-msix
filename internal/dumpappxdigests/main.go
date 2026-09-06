@@ -139,6 +139,7 @@ func storedDigestTable(data []byte) (map[string][]byte, error) {
 }
 
 // recomputeDigests re-derives every APPX digest from the signed package bytes.
+// Handles both classic and canonical ZIP64 (makeappx/signtool-form) containers.
 func recomputeDigests(data []byte) (map[string][]byte, error) {
 	// EOCD: scan backwards for PK\x05\x06.
 	eocd := -1
@@ -151,11 +152,19 @@ func recomputeDigests(data []byte) (map[string][]byte, error) {
 	if eocd < 0 {
 		return nil, fmt.Errorf("no EOCD")
 	}
-	if eocd >= 20 && bytes.Equal(data[eocd-20:eocd-16], []byte{'P', 'K', 0x06, 0x07}) {
-		return nil, fmt.Errorf("ZIP64 archive not supported by this tool")
+	var cdOffset, cdSize, z64 int
+	zip64 := eocd >= 20 && bytes.Equal(data[eocd-20:eocd-16], []byte{'P', 'K', 0x06, 0x07})
+	if zip64 {
+		z64 = int(binary.LittleEndian.Uint64(data[eocd-12 : eocd-4]))
+		if !bytes.Equal(data[z64:z64+4], []byte{'P', 'K', 0x06, 0x06}) {
+			return nil, fmt.Errorf("bad ZIP64 EOCD at %d", z64)
+		}
+		cdSize = int(binary.LittleEndian.Uint64(data[z64+40 : z64+48]))
+		cdOffset = int(binary.LittleEndian.Uint64(data[z64+48 : z64+56]))
+	} else {
+		cdOffset = int(binary.LittleEndian.Uint32(data[eocd+16 : eocd+20]))
+		cdSize = int(binary.LittleEndian.Uint32(data[eocd+12 : eocd+16]))
 	}
-	cdOffset := int(binary.LittleEndian.Uint32(data[eocd+16 : eocd+20]))
-	cdSize := int(binary.LittleEndian.Uint32(data[eocd+12 : eocd+16]))
 
 	// Walk central directory entries; find the signature's entry.
 	sigLocal, sigEntryStart, sigEntryLen := -1, -1, 0
@@ -180,17 +189,32 @@ func recomputeDigests(data []byte) (map[string][]byte, error) {
 	axpc := sha256.Sum256(data[:sigLocal])
 	table["AXPC"] = axpc[:]
 
-	// Unsigned central directory: all entries minus the signature's, EOCD
-	// rewritten with unsigned counts, size and offset.
+	// Unsigned central directory: all entries minus the signature's, end
+	// records rewritten with unsigned counts, size and offset — in the same
+	// form (classic or ZIP64) the file uses.
 	var cd bytes.Buffer
 	cd.Write(data[cdOffset:sigEntryStart])
 	cd.Write(data[sigEntryStart+sigEntryLen : cdOffset+cdSize])
-	unsignedEOCD := append([]byte{}, data[eocd:eocd+22]...)
-	binary.LittleEndian.PutUint16(unsignedEOCD[8:10], binary.LittleEndian.Uint16(data[eocd+8:eocd+10])-1)
-	binary.LittleEndian.PutUint16(unsignedEOCD[10:12], binary.LittleEndian.Uint16(data[eocd+10:eocd+12])-1)
-	binary.LittleEndian.PutUint32(unsignedEOCD[12:16], uint32(cd.Len()))
-	binary.LittleEndian.PutUint32(unsignedEOCD[16:20], uint32(sigLocal))
-	cd.Write(unsignedEOCD)
+	if zip64 {
+		z64rec := append([]byte{}, data[z64:z64+56]...)
+		binary.LittleEndian.PutUint64(z64rec[24:32], binary.LittleEndian.Uint64(data[z64+24:z64+32])-1)
+		binary.LittleEndian.PutUint64(z64rec[32:40], binary.LittleEndian.Uint64(data[z64+32:z64+40])-1)
+		binary.LittleEndian.PutUint64(z64rec[40:48], uint64(cd.Len()))
+		binary.LittleEndian.PutUint64(z64rec[48:56], uint64(sigLocal))
+		cd.Write(z64rec)
+		// The locator points at the ZIP64 EOCD, which follows the unsigned CD.
+		loc := append([]byte{}, data[eocd-20:eocd]...)
+		binary.LittleEndian.PutUint64(loc[8:16], uint64(sigLocal)+binary.LittleEndian.Uint64(z64rec[40:48]))
+		cd.Write(loc)
+		cd.Write(data[eocd : eocd+22]) // FF-stub EOCD is unchanged
+	} else {
+		unsignedEOCD := append([]byte{}, data[eocd:eocd+22]...)
+		binary.LittleEndian.PutUint16(unsignedEOCD[8:10], binary.LittleEndian.Uint16(data[eocd+8:eocd+10])-1)
+		binary.LittleEndian.PutUint16(unsignedEOCD[10:12], binary.LittleEndian.Uint16(data[eocd+10:eocd+12])-1)
+		binary.LittleEndian.PutUint32(unsignedEOCD[12:16], uint32(cd.Len()))
+		binary.LittleEndian.PutUint32(unsignedEOCD[16:20], uint32(sigLocal))
+		cd.Write(unsignedEOCD)
+	}
 	cd.Write(data[eocd+22:]) // zip comment, if any
 	axcd := sha256.Sum256(cd.Bytes())
 	table["AXCD"] = axcd[:]
