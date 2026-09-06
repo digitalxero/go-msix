@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Unit tests (race)
+        run: go test -race -count=1 ./...
+      - name: Install osslsigncode
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends osslsigncode
+      - name: Cross-check signed MSIX against osslsigncode APPX digest recomputation
+        run: ./scripts/verify_msix.sh
+
+  windows-signature:
+    # Real Windows validation of the Authenticode signature: crypt32 recomputes
+    # the APPX digests (the check that reported HashMismatch in issue #3), and
+    # Add-AppxPackage performs an actual MSIX deployment.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Build signed sample MSIX
+        run: go run ./internal/gensignedmsix "$env:RUNNER_TEMP\sample"
+      - name: Trust throwaway chain and locate signtool
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $d = "$env:RUNNER_TEMP\sample"
+          Import-Certificate -FilePath "$d\root.cer" -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath "$d\leaf.cer" -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+          Add-Content $env:GITHUB_ENV "SIGNTOOL=$($signtool.FullName)"
+      - name: "Diagnostic: real signtool signs the same package (digest-table oracle)"
+        shell: powershell
+        continue-on-error: true
+        run: |
+          $d = "$env:RUNNER_TEMP\sample"
+          # Re-sign OUR signed package with real signtool: same underlying
+          # bytes, so its digest table must equal ours if the semantics match.
+          Copy-Item "$d\signed.msix" "$d\signtool-resigned.msix"
+          & $env:SIGNTOOL sign /debug /fd SHA256 /f "$d\signer.pfx" /p go-msix "$d\signtool-resigned.msix"
+          Write-Host "signtool re-sign exit: $LASTEXITCODE"
+          # Also try signing the unsigned package (no p7x content-type entry).
+          Copy-Item "$d\unsigned.msix" "$d\signtool-from-unsigned.msix"
+          & $env:SIGNTOOL sign /fd SHA256 /f "$d\signer.pfx" /p go-msix "$d\signtool-from-unsigned.msix"
+          Write-Host "signtool sign-from-unsigned exit: $LASTEXITCODE"
+          foreach ($p in 'signed.msix','signtool-resigned.msix','signtool-from-unsigned.msix') {
+            if (Test-Path "$d\$p") {
+              Write-Host "`n===== $p ====="
+              go run ./internal/dumpappxdigests "$d\$p"
+              $s = Get-AuthenticodeSignature "$d\$p"
+              Write-Host "Get-AuthenticodeSignature($p): $($s.Status) - $($s.StatusMessage)"
+            }
+          }
+      - name: Upload diagnostic packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-diagnostics
+          path: ${{ runner.temp }}/sample/*.msix
+      - name: Validate signature and install (real Windows trust stack)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $d = "$env:RUNNER_TEMP\sample"
+
+          $unsigned = Get-AuthenticodeSignature "$d\unsigned.msix"
+          if ($unsigned.Status -ne 'NotSigned') { throw "unsigned.msix status $($unsigned.Status), expected NotSigned" }
+
+          $sig = Get-AuthenticodeSignature "$d\signed.msix"
+          Write-Host "Get-AuthenticodeSignature: $($sig.Status) - $($sig.StatusMessage)"
+          if ($sig.Status -ne 'Valid') { throw "signed.msix status $($sig.Status), expected Valid: $($sig.StatusMessage)" }
+
+          & $env:SIGNTOOL verify /pa "$d\signed.msix"
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed with exit code $LASTEXITCODE" }
+
+          # End-to-end: deploy and remove the package.
+          Add-AppxPackage "$d\signed.msix"
+          $pkg = Get-AppxPackage -Name 'GoMsix.SignedSample'
+          if (-not $pkg) { throw "package not found after Add-AppxPackage" }
+          Write-Host "installed: $($pkg.PackageFullName)"
+          Remove-AppxPackage $pkg.PackageFullName
+          Write-Host "windows-signature: ALL CHECKS PASSED"

@@ -1,0 +1,52 @@
+# https://taskfile.dev/
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: test
+
+  test:
+    desc: Run all tests with the race detector
+    cmds:
+      - go test -race -count=1 ./...
+
+  test-integration:
+    desc: Run makemsix round-trip integration tests (needs MAKEMSIX_PATH or makemsix on PATH)
+    cmds:
+      - go test -tags integration -count=1 ./...
+
+  build:
+    desc: Build the package and generators
+    cmds:
+      - go build ./...
+
+  tidy:
+    desc: Tidy go modules
+    cmds:
+      - go mod tidy
+
+  lint:
+    desc: vet + gofmt check
+    cmds:
+      - go vet ./...
+      - test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+  verify-msix:
+    desc: Cross-check a signed MSIX against osslsigncode APPX digest recomputation (native or docker)
+    cmds:
+      - ./scripts/verify_msix.sh
+
+  gen-sample:
+    desc: Generate the signed sample MSIX (+ unsigned baseline and signer certs)
+    cmds:
+      - go run ./internal/gensignedmsix {{.CLI_ARGS | default "out"}}
+
+  verify:
+    desc: Full local verification (tidy + test + build + lint + external cross-check)
+    cmds:
+      - task: tidy
+      - task: test
+      - task: build
+      - task: lint
+      - task: verify-msix

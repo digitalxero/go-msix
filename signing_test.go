@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/binary"
 	"math/big"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ func TestBuildDigestBlob(t *testing.T) {
 	axbm := sha256.Sum256([]byte("axbm"))
 	axci := sha256.Sum256([]byte("axci"))
 
-	blob := buildDigestBlob(axpc, axcd, axct, axbm, axci)
+	blob := buildDigestBlob(axpc, axcd, axct, axbm, &axci)
 
 	// Check total size.
 	if len(blob) != 184 {
@@ -34,14 +33,14 @@ func TestBuildDigestBlob(t *testing.T) {
 	}
 
 	// Check tags.
-	tags := []uint32{tagAXPC, tagAXCD, tagAXCT, tagAXBM, tagAXCI}
+	tags := []string{"AXPC", "AXCD", "AXCT", "AXBM", "AXCI"}
 	hashes := [][32]byte{axpc, axcd, axct, axbm, axci}
 
 	offset := 4
 	for i, tag := range tags {
-		gotTag := binary.LittleEndian.Uint32(blob[offset : offset+4])
+		gotTag := string(blob[offset : offset+4])
 		if gotTag != tag {
-			t.Fatalf("tag %d: expected 0x%X, got 0x%X", i, tag, gotTag)
+			t.Fatalf("tag %d: expected %q, got %q", i, tag, gotTag)
 		}
 		var gotHash [32]byte
 		copy(gotHash[:], blob[offset+4:offset+36])
@@ -101,14 +100,13 @@ func TestCreateSignature(t *testing.T) {
 	axcd := sha256.Sum256([]byte("axcd"))
 	axct := sha256.Sum256([]byte("axct"))
 	axbm := sha256.Sum256([]byte("axbm"))
-	var axci [32]byte
 
 	creds := &signingCreds{
 		cert: cert,
 		key:  key,
 	}
 
-	sig, err := createSignature(axpc, axcd, axct, axbm, axci, creds)
+	sig, err := createSignature(axpc, axcd, axct, axbm, nil, creds)
 	if err != nil {
 		t.Fatal(err)
 	}

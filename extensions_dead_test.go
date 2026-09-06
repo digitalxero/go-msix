@@ -165,7 +165,7 @@ func TestDeadApplicationExtensions(t *testing.T) {
 			b := baseExtBuilder().AddApplication(
 				msix.NewApplication().WithID("App").WithExecutable("App.exe").
 					WithVisualElements(msix.NewVisualElements().
-						WithDisplayName("App").WithBackgroundColor("#000").
+						WithDisplayName("App").WithDescription("App").WithBackgroundColor("#000").
 						WithSquare150x150Logo("a.png").WithSquare44x44Logo("b.png").Build()).
 					AddExtension(c.ext).Build())
 			xml := extManifestXML(t, b)
@@ -205,7 +205,7 @@ func TestDeadPackageExtensions(t *testing.T) {
 			b := baseExtBuilder().AddApplication(
 				msix.NewApplication().WithID("App").WithExecutable("App.exe").
 					WithVisualElements(msix.NewVisualElements().
-						WithDisplayName("App").WithBackgroundColor("#000").
+						WithDisplayName("App").WithDescription("App").WithBackgroundColor("#000").
 						WithSquare150x150Logo("a.png").WithSquare44x44Logo("b.png").Build()).
 					Build()).
 				AddPackageExtension(c.ext)
