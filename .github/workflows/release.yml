@@ -58,7 +58,9 @@ jobs:
           go-version: "1.23"
 
       - name: Install svu
-        run: go install github.com/caarlos0/svu/v3@latest
+        run: |
+          go install github.com/caarlos0/svu/v3@v3.4.1
+          go install github.com/goreleaser/chglog/cmd/chglog@v0.7.4
 
       - name: Determine version
         id: version
@@ -80,6 +82,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          python3 .repo-policy/release.py changelog
+          chglog format --template release --output release-notes.md
           git tag "${{ steps.version.outputs.next }}"
           git push origin "${{ steps.version.outputs.next }}"
-          gh release create "${{ steps.version.outputs.next }}" --generate-notes
+          gh release create "${{ steps.version.outputs.next }}" --notes-file release-notes.md
