@@ -3,6 +3,7 @@ package msix
 import (
 	"fmt"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -18,7 +19,7 @@ func payloadPath(value string) (string, error) {
 		return "", fmt.Errorf("msix: payload path %q is empty", value)
 	}
 	for _, segment := range strings.Split(p, "/") {
-		if segment == "" || segment == "." || segment == ".." || strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") || strings.ContainsAny(segment, `<>:"|?*`) || strings.ContainsFunc(segment, func(r rune) bool { return r < 0x20 }) {
+		if len(utf16.Encode([]rune(segment))) > 255 || segment == "" || segment == "." || segment == ".." || strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") || strings.ContainsAny(segment, `<>:"|?*`) || strings.ContainsFunc(segment, func(r rune) bool { return r < 0x20 }) {
 			return "", fmt.Errorf("msix: payload path %q contains an unsupported Windows filename %q", value, segment)
 		}
 		device := windowsPathKey(strings.TrimRight(strings.SplitN(segment, ".", 2)[0], " "))

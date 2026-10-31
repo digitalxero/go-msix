@@ -100,7 +100,7 @@ func TestAuditPayloadCollisions(t *testing.T) {
 
 // #7: a single leading slash remains supported; UNC/traversal/device aliases do not.
 func TestAuditPayloadPaths(t *testing.T) {
-	for _, p := range []string{"", "/", "../outside.txt", `dir\..\outside.txt`, "./data", "a//b", "a/./b", "a/", "//server/share", `\\server\share`, "C:/outside.txt", "NUL.txt", "NUL .txt", "con", "COM1.log", "Lpt9", "COM¹.txt", "aux/data", "readme.txt.", "readme.txt ", "file.txt:stream", `a<b`, `a|b`, `a?b`, `a*b`, `a"b`, "a\x00b", "a\x1fb", string([]byte{0xff})} {
+	for _, p := range []string{"", "/", "../outside.txt", `dir\..\outside.txt`, "./data", "a//b", "a/./b", "a/", "//server/share", `\\server\share`, "C:/outside.txt", "NUL.txt", "NUL .txt", "con", "COM1.log", "Lpt9", "COM¹.txt", strings.Repeat("a", 256), strings.Repeat("😀", 128), "aux/data", "readme.txt.", "readme.txt ", "file.txt:stream", `a<b`, `a|b`, `a?b`, `a*b`, `a"b`, "a\x00b", "a\x1fb", string([]byte{0xff})} {
 		t.Run(p, func(t *testing.T) {
 			data, err := auditBuild(auditBase().AddFileFromBytes(p, nil))
 			require.Error(t, err)
@@ -128,6 +128,9 @@ func TestAuditCoreManifest(t *testing.T) {
 		{"short version", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithVersion("1.2.3").Build()) }},
 		{"leading zero", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithVersion("01.2.3.0").Build()) }},
 		{"name", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithName("bad package name").Build()) }},
+		{"resource architecture", func(b msix.Builder) {
+			b.WithIdentity(auditIdentity().WithResourceID("en-us").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build())
+		}},
 		{"architecture", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithProcessorArchitecture("bogus").Build()) }},
 		{"resource id", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithResourceID("bad id").Build()) }},
 		{"publisher", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithPublisher("not a DN").Build()) }},
@@ -203,6 +206,14 @@ func TestAuditManifestSerialization(t *testing.T) {
 	const desktop10 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/10"
 	t.Run("protocol", func(t *testing.T) {
 		data := auditManifest(t, auditBase().AddApplication(auditApp("App", msix.NewProtocol().WithName("audit").WithDisplayName(`Audit & <Protocol>`).WithLogo("logo.png").Build())))
+		logos := auditElements(t, data, "Logo")
+		var protocolLogo bool
+		for _, l := range logos {
+			if l.Name.Space == uap {
+				protocolLogo = true
+			}
+		}
+		assert.True(t, protocolLogo, "protocol logo must be retained")
 		protocols := auditElements(t, data, "Protocol")
 		require.Len(t, protocols, 1)
 		for _, a := range protocols[0].Attr {
@@ -239,6 +250,17 @@ func TestAuditManifestSerialization(t *testing.T) {
 		assert.Equal(t, name, attrs[xml.Name{Space: desktop10, Local: "DisplayName"}])
 		assert.NotContains(t, attrs, xml.Name{Local: "DisplayName"})
 	})
+	t.Run("shortcut unset", func(t *testing.T) {
+		data := auditManifest(t, auditBase().AddApplication(auditApp("App", msix.NewShortcut().WithFile(`$(Desktop)\Audit.lnk`).WithIcon("app.exe").Build())))
+		es := auditElements(t, data, "Shortcut")
+		require.Len(t, es, 1)
+		for _, a := range es[0].Attr {
+			assert.NotEqual(t, "Arguments", a.Name.Local)
+			assert.NotEqual(t, "DisplayName", a.Name.Local)
+		}
+		assert.NotContains(t, string(data), "xmlns:desktop10=")
+	})
+
 	for _, mode := range []string{"unset", "false", "true"} {
 		t.Run("allow execution "+mode, func(t *testing.T) {
 			p := auditProperties()

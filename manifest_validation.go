@@ -64,6 +64,12 @@ func validateCoreManifest(m *manifestData) error {
 	default:
 		check(false, "identity processor architecture", "is unsupported")
 	}
+
+	if m.Properties.ResourcePackage {
+		check(id.ProcessorArchitecture == "", "resource package identity processor architecture", "must be omitted")
+		check(id.ResourceID != "", "resource package identity resource ID", "is required")
+		check(len(m.Applications) == 0, "resource package applications", "must be omitted")
+	}
 	text := func(s, field string, max int, required bool) {
 		if !required && s == "" {
 			return
@@ -223,10 +229,10 @@ func validateRegistrationIdentities(m *manifestData) error {
 				claim(protocols, strings.ToLower(e.ProtocolUap10.Name), ext+" protocol "+e.ProtocolUap10.Name)
 			}
 			if e.Service != nil {
-				claim(services, windowsPathKey(e.Service.Name), ext+" service "+e.Service.Name)
+				claim(services, strings.ToUpper(e.Service.Name), ext+" service "+e.Service.Name)
 			}
 			if e.ServiceDesktop7 != nil {
-				claim(services, windowsPathKey(e.ServiceDesktop7.Name), ext+" service "+e.ServiceDesktop7.Name)
+				claim(services, strings.ToUpper(e.ServiceDesktop7.Name), ext+" service "+e.ServiceDesktop7.Name)
 			}
 			if e.Shortcut != nil {
 				key, err := shortcutIdentity(e.Shortcut.File)
