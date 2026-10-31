@@ -235,7 +235,8 @@ func (b *builder) validateReferences(m *manifestData) error {
 }
 
 // StartPage's local file form and URI form have different schema character
-// rules. Match only the parsed path; leave query/fragment text in the manifest.
+// rules. Relative values are literal filenames (including #). Explicit URIs
+// match only their parsed path; leave query/fragment text in the manifest.
 // Explicit ms-appx-web authorities can name dependencies in the package graph.
 func startPagePath(value, packageName string) (string, error) {
 	u, err := url.Parse(value)
@@ -248,9 +249,7 @@ func startPagePath(value, packageName string) (string, error) {
 		if strings.ContainsAny(value, "?%") {
 			return "", errors.New("relative queries and escapes require an explicit ms-appx-web URI")
 		}
-		if _, err := manifestPath(value); err != nil {
-			return "", err
-		}
+		return manifestPath(value)
 	case "http", "https":
 		if u.Host == "" {
 			return "", errors.New("HTTP(S) URI requires a host")

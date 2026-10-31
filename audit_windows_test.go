@@ -105,50 +105,58 @@ func TestAuditSDKWindows(t *testing.T) {
 		name                     string
 		b                        func() msix.Builder
 		negativeOld, negativeNew string
+		qualified                bool
 	}{
 		{"protocol", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithDisplayName("Audit & Protocol").WithLogo("logo.png").Build()))
-		}, `<uap:Protocol Name="go-msix-audit">`, `<uap:Protocol Name="go-msix-audit" DesktopAppInfo="bad">`},
-		{"local page fragment", func() msix.Builder {
-			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("index.html#home").WithVisualElements(nativeVisual()).Build())
-		}, `StartPage="index.html#home"`, `StartPage="index.html?mode=compact"`},
+		}, `<uap:Protocol Name="go-msix-audit">`, `<uap:Protocol Name="go-msix-audit" DesktopAppInfo="bad">`, false},
+		{"local page filename", func() msix.Builder {
+			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("index.html").WithVisualElements(nativeVisual()).Build())
+		}, `StartPage="index.html"`, `StartPage="index.html#home"`, false},
+		{"relative query rejected", func() msix.Builder {
+			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("index.html").WithVisualElements(nativeVisual()).Build())
+		}, `StartPage="index.html"`, `StartPage="index.html?mode=compact"`, false},
+
 		{"package page query", func() msix.Builder {
 			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("ms-appx-web:///index.html?mode=compact#home").WithVisualElements(nativeVisual()).Build())
-		}, `StartPage="ms-appx-web:///index.html?mode=compact#home"`, `StartPage="ftp://example.com/index.html"`},
+		}, `StartPage="ms-appx-web:///index.html?mode=compact#home"`, `StartPage="ftp://example.com/index.html"`, false},
 		{"qualified protocol logo", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddFileFromBytes("Assets/protocol.scale-200.png", nativePNG(t, 88)).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithLogo("Assets/protocol.png").Build()))
-		}, `<uap:Logo>Assets/protocol.png</uap:Logo>`, `<uap:Logo>bad:protocol.png</uap:Logo>`},
+		}, `<uap:Logo>Assets/protocol.png</uap:Logo>`, `<uap:Logo>bad:protocol.png</uap:Logo>`, true},
 		{"qualified association logo", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddFileFromBytes("Assets/association.scale-200.png", nativePNG(t, 88)).AddApplication(nativeApp("App", msix.NewFileTypeAssociation().WithName("audit").WithLogo("Assets/association.png").AddSupportedFileType(msix.NewFileType().WithExtension(".audit").Build()).Build()))
-		}, `<uap:Logo>Assets/association.png</uap:Logo>`, `<uap:Logo>bad:association.png</uap:Logo>`},
+		}, `<uap:Logo>Assets/association.png</uap:Logo>`, `<uap:Logo>bad:association.png</uap:Logo>`, true},
 
 		{"shortcut", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewShortcut().WithFile(`$(Desktop)\GoMsixAudit.lnk`).WithIcon("app.exe").WithArguments(`--audit "A & B"`).WithDisplayName("Audit shortcut").Build()))
-		}, `desktop10:DisplayName="Audit shortcut"`, `DisplayName="Audit shortcut"`},
+		}, `desktop10:DisplayName="Audit shortcut"`, `DisplayName="Audit shortcut"`, false},
 		{"allow false", func() msix.Builder {
 			return nativeBase(t, "Audit.Assets").WithProperties(auditProperties().WithAllowExecution(false).WithFramework(true).Build())
-		}, `uap6:AllowExecution`, `AllowExecution`},
+		}, `uap6:AllowExecution`, `AllowExecution`, false},
 		{"allow true", func() msix.Builder {
 			return nativeBase(t, "Audit.Assets").WithProperties(auditProperties().WithAllowExecution(true).WithFramework(true).Build())
-		}, `uap6:AllowExecution`, `AllowExecution`},
+		}, `uap6:AllowExecution`, `AllowExecution`, false},
 		{"allow unset", func() msix.Builder {
 			return nativeBase(t, "Audit.Assets").WithProperties(auditProperties().WithFramework(true).Build())
-		}, `Version="1.2.3.0"`, `Version="1.x.3.0"`},
+		}, `Version="1.2.3.0"`, `Version="1.x.3.0"`, false},
 		{"resource scale", func() msix.Builder {
 			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("scale100").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").Build())
-		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
+		}, `uap:Scale="100"`, `uap:Scale="invalid"`, false},
 		{"resource dx", func() msix.Builder {
 			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
-		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`},
+		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`, false},
 		{"resource both", func() msix.Builder {
 			return nativeBase(t, "Audit.Resources").WithProperties(auditProperties().WithFramework(true).Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
-		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
+		}, `uap:Scale="100"`, `uap:Scale="invalid"`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			data, err := auditBuild(tc.b())
 			require.NoError(t, err)
 			parts := unzip(t, data)
+			if tc.qualified {
+				parts["resources.pri"] = nativePRI(t, parts)
+			}
 			for _, valid := range []bool{true, false} {
 				t.Run(fmt.Sprint(valid), func(t *testing.T) {
 					dir := t.TempDir()
@@ -176,6 +184,31 @@ func TestAuditSDKWindows(t *testing.T) {
 			}
 		})
 	}
+}
+
+func nativePRI(t *testing.T, parts map[string][]byte) []byte {
+	t.Helper()
+	tool := nativeTool(t, "makepri")
+	dir := t.TempDir()
+	config := filepath.Join(t.TempDir(), "priconfig.xml")
+	for name, body := range parts {
+		if name == "AppxBlockMap.xml" || name == "[Content_Types].xml" {
+			continue
+		}
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0755))
+		require.NoError(t, os.WriteFile(p, body, 0600))
+	}
+	cmd := exec.Command(tool, "createconfig", "/cf", config, "/dq", "en-US", "/o")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	index := filepath.Join(dir, "resources.pri")
+	cmd = exec.Command(tool, "new", "/pr", dir, "/cf", config, "/of", index, "/o")
+	out, err = cmd.CombinedOutput()
+	require.NoError(t, err, "%s", out)
+	data, err := os.ReadFile(index)
+	require.NoError(t, err)
+	return data
 }
 
 func nativePowerShell(t *testing.T, script string, args ...string) string {

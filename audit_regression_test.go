@@ -432,9 +432,9 @@ func TestAuditQualifiedAssets(t *testing.T) {
 }
 
 func TestReviewLocalStartPageURLs(t *testing.T) {
-	for _, value := range []string{"index.html#home", `pages\index.html#home`, "ms-appx-web:///index.html?mode=compact#home", "ms-appx-web://Audit.App/index.html?mode=compact#home", "ms-appx-web:///page%20name.html?mode=compact"} {
+	for _, value := range []string{"index.html", `pages\index.html`, "literal#name.html", "ms-appx-web:///index.html#home", "ms-appx-web:///index.html?mode=compact#home", "ms-appx-web://Audit.App/index.html?mode=compact#home", "ms-appx-web:///page%20name.html?mode=compact"} {
 		t.Run(value, func(t *testing.T) {
-			b := auditBase().AddFileFromBytes("index.html", []byte("<html></html>")).AddFileFromBytes("page name.html", []byte("<html></html>")).AddFileFromBytes("pages/index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage(value).WithVisualElements(auditVisual()).Build())
+			b := auditBase().AddFileFromBytes("index.html", []byte("<html></html>")).AddFileFromBytes("page name.html", []byte("<html></html>")).AddFileFromBytes("pages/index.html", []byte("<html></html>")).AddFileFromBytes("literal#name.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage(value).WithVisualElements(auditVisual()).Build())
 			data, err := auditBuild(b)
 			require.NoError(t, err)
 			apps := auditElements(t, unzip(t, data)["AppxManifest.xml"], "Application")
@@ -448,7 +448,7 @@ func TestReviewLocalStartPageURLs(t *testing.T) {
 			assert.Equal(t, value, got)
 		})
 	}
-	for _, value := range []string{`https:\\example.com\index.html`, "missing.html#home", "ms-appx-web:///missing.html?mode=compact", "ms-appx-web://Audit.App/missing.html#home", "index.html?mode=compact", "ms-appx-web:///../outside.html", "ms-appx-web:///%2e%2e/outside.html", "ms-appx-web:////server/share.html", "//server/share.html"} {
+	for _, value := range []string{`https:\\example.com\index.html`, "index.html#home", "missing.html#home", "ms-appx-web:///missing.html?mode=compact", "ms-appx-web://Audit.App/missing.html#home", "index.html?mode=compact", "ms-appx-web:///../outside.html", "ms-appx-web:///%2e%2e/outside.html", "ms-appx-web:////server/share.html", "//server/share.html"} {
 		t.Run(value, func(t *testing.T) {
 			data, err := auditBuild(auditBase().AddFileFromBytes("index.html", nil).AddApplication(msix.NewApplication().WithID("Web").WithStartPage(value).WithVisualElements(auditVisual()).Build()))
 			require.Error(t, err)
