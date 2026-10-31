@@ -3,6 +3,7 @@ package msix
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"path"
 	"regexp"
 	"strconv"
@@ -141,6 +142,7 @@ func validateCoreManifest(m *manifestData) error {
 		text(v.DisplayName, field+" display name", 256, true)
 		text(v.Description, field+" description", 2048, true)
 		check(!strings.ContainsFunc(v.Description, func(r rune) bool { return r < 0x20 }), field+" description", "must not contain control characters")
+		check(backgroundColor.MatchString(v.BackgroundColor), field+" background color", "must be a six-digit hex color or a documented Windows color name")
 		imagePath(v.Square150x150Logo, field+" square 150x150 logo")
 		imagePath(v.Square44x44Logo, field+" square 44x44 logo")
 		check(v.AppListEntry == "" || v.AppListEntry == "default" || v.AppListEntry == "none", field+" app list entry", "must be default or none")
@@ -149,7 +151,7 @@ func validateCoreManifest(m *manifestData) error {
 }
 
 func manifestPath(value string) (string, error) {
-	if strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
+	if strings.TrimSpace(value) != value || strings.Contains(value, "%") || strings.HasPrefix(value, "/") || strings.HasPrefix(value, `\`) {
 		return "", fmt.Errorf("manifest path %q must be relative", value)
 	}
 	return payloadPath(value)
@@ -192,6 +194,16 @@ func (b *builder) validateReferences(m *manifestData) error {
 	for i, a := range m.Applications {
 		field := fmt.Sprintf("application[%d]", i)
 		check(a.Executable, field+" executable", false)
+		if a.StartPage != "" {
+			u, err := url.Parse(a.StartPage)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("msix: %s start page: %w", field, err))
+			} else if u.Scheme == "" {
+				check(a.StartPage, field+" start page", false)
+			} else if (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ms-appx-web") || (u.Scheme != "ms-appx-web" && u.Host == "") {
+				errs = append(errs, fmt.Errorf("msix: %s start page has unsupported URI %q", field, a.StartPage))
+			}
+		}
 		check(a.VisualElements.Square150x150Logo, field+" square 150x150 logo", true)
 		check(a.VisualElements.Square44x44Logo, field+" square 44x44 logo", true)
 		if v := a.VisualElements.DefaultTile; v != nil {
@@ -309,3 +321,6 @@ func shortcutIdentity(value string) (string, error) {
 	}
 	return windowsPathKey(root + "/" + relative), nil
 }
+
+// ST_Color from the Microsoft foundation manifest types.
+var backgroundColor = regexp.MustCompile(`^(?:#[0-9a-fA-F]{6}|aliceBlue|antiqueWhite|aqua|aquamarine|azure|beige|bisque|black|blanchedAlmond|blue|blueViolet|brown|burlyWood|cadetBlue|chartreuse|chocolate|coral|cornflowerBlue|cornsilk|crimson|cyan|darkBlue|darkCyan|darkGoldenrod|darkGray|darkGreen|darkKhaki|darkMagenta|darkOliveGreen|darkOrange|darkOrchid|darkRed|darkSalmon|darkSeaGreen|darkSlateBlue|darkSlateGray|darkTurquoise|darkViolet|deepPink|deepSkyBlue|dimGray|dodgerBlue|firebrick|floralWhite|forestGreen|fuchsia|gainsboro|ghostWhite|gold|goldenrod|gray|green|greenYellow|honeydew|hotPink|indianRed|indigo|ivory|khaki|lavender|lavenderBlush|lawnGreen|lemonChiffon|lightBlue|lightCoral|lightCyan|lightGoldenrodYellow|lightGreen|lightGray|lightPink|lightSalmon|lightSeaGreen|lightSkyBlue|lightSlateGray|lightSteelBlue|lightYellow|lime|limeGreen|linen|magenta|maroon|mediumAquamarine|mediumBlue|mediumOrchid|mediumPurple|mediumSeaGreen|mediumSlateBlue|mediumSpringGreen|mediumTurquoise|mediumVioletRed|midnightBlue|mintCream|mistyRose|moccasin|navajoWhite|navy|oldLace|olive|oliveDrab|orange|orangeRed|orchid|paleGoldenrod|paleGreen|paleTurquoise|paleVioletRed|papayaWhip|peachPuff|peru|pink|plum|powderBlue|purple|red|rosyBrown|royalBlue|saddleBrown|salmon|sandyBrown|seaGreen|seaShell|sienna|silver|skyBlue|slateBlue|slateGray|snow|springGreen|steelBlue|tan|teal|thistle|tomato|transparent|turquoise|violet|wheat|white|whiteSmoke|yellow|yellowGreen)$`)

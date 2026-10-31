@@ -22,9 +22,10 @@ func auditIdentity() msix.IdentityBuilder {
 func auditProperties() msix.PropertiesBuilder {
 	return msix.NewProperties().WithDisplayName("Audit").WithPublisherDisplayName("Audit").WithLogo("logo.png")
 }
-func auditVisual() msix.VisualElements {
-	return msix.NewVisualElements().WithDisplayName("Audit").WithDescription("Audit application").WithBackgroundColor("transparent").WithSquare150x150Logo("logo.png").WithSquare44x44Logo("logo.png").Build()
+func auditVisualBuilder() msix.VisualElementsBuilder {
+	return msix.NewVisualElements().WithDisplayName("Audit").WithDescription("Audit application").WithBackgroundColor("transparent").WithSquare150x150Logo("logo.png").WithSquare44x44Logo("logo.png")
 }
+func auditVisual() msix.VisualElements { return auditVisualBuilder().Build() }
 func auditApp(id string, exts ...msix.ApplicationExtension) msix.Application {
 	a := msix.NewApplication().WithID(id).WithExecutable("app.exe").WithEntryPoint("Windows.FullTrustApplication").WithVisualElements(auditVisual())
 	for _, e := range exts {
@@ -142,6 +143,16 @@ func TestAuditCoreManifest(t *testing.T) {
 		}},
 		{"dependency missing", func(b msix.Builder) { b.WithDependencies(msix.NewDependencies().Build()) }},
 		{"description control", func(b msix.Builder) { b.WithProperties(auditProperties().WithDescription("a\tb").Build()) }},
+
+		{"background color", func(b msix.Builder) {
+			b.AddApplication(msix.NewApplication().WithID("App").WithExecutable("app.exe").WithVisualElements(auditVisualBuilder().WithBackgroundColor("bogus").Build()).Build())
+		}},
+		{"percent manifest path", func(b msix.Builder) {
+			b.AddFileFromBytes("percent%.exe", nil).AddApplication(msix.NewApplication().WithID("App").WithExecutable("percent%.exe").WithVisualElements(auditVisual()).Build())
+		}},
+		{"local start page", func(b msix.Builder) {
+			b.AddApplication(msix.NewApplication().WithID("Web").WithStartPage("missing.html").WithVisualElements(auditVisual()).Build())
+		}},
 		{"properties required", func(b msix.Builder) { b.WithProperties(msix.NewProperties().Build()) }},
 		{"padded name", func(b msix.Builder) { b.WithProperties(auditProperties().WithDisplayName(" Padded ").Build()) }},
 		{"missing logo", func(b msix.Builder) { b.WithProperties(auditProperties().WithLogo("missing.png").Build()) }},
@@ -170,6 +181,8 @@ func TestAuditCoreManifest(t *testing.T) {
 	}
 	// Optional executable is legal for hosted/activation-only apps.
 	_, err := auditBuild(auditBase().AddApplication(msix.NewApplication().WithID("Hosted").WithStartPage("https://example.com").WithVisualElements(auditVisual()).Build()))
+	require.NoError(t, err)
+	_, err = auditBuild(auditBase().AddApplication(msix.NewApplication().WithID("LocalWeb").WithStartPage("index.html").WithVisualElements(auditVisual()).Build()).AddFileFromBytes("index.html", []byte("<html></html>")))
 	require.NoError(t, err)
 	// Resource references are resolved by MRT; qualified image variants satisfy base references.
 	_, err = auditBuild(auditBase().WithProperties(auditProperties().WithLogo("Assets/Logo.png").Build()).AddFileFromBytes("Assets/en-us/Logo.scale-200.png", nil))
