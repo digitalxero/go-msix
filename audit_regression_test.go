@@ -33,7 +33,7 @@ func auditApp(id string, exts ...msix.ApplicationExtension) msix.Application {
 	return a.Build()
 }
 func auditBase() msix.Builder {
-	return msix.NewBuilder().WithIdentity(auditIdentity().Build()).WithProperties(auditProperties().Build()).WithDependencies(msix.NewDependencies().AddTargetDeviceFamily("Windows.Desktop", "10.0.19645.0", "10.0.26100.0").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ audit")).AddFileFromBytes("logo.png", []byte("audit image"))
+	return msix.NewBuilder().WithIdentity(auditIdentity().Build()).WithProperties(auditProperties().Build()).WithDependencies(msix.NewDependencies().AddTargetDeviceFamily("Windows.Desktop", "10.0.19645.0", "10.0.26100.0").Build()).AddFileFromBytes("app.exe", []byte("MZ audit")).AddFileFromBytes("logo.png", []byte("audit image"))
 }
 func auditBuild(b msix.Builder) ([]byte, error) {
 	var buf bytes.Buffer
@@ -265,7 +265,7 @@ func TestAuditManifestSerialization(t *testing.T) {
 			if mode != "scale" {
 				r.WithDXFeatureLevel("dx9")
 			}
-			data := auditManifest(t, auditBase().WithIdentity(auditIdentity().WithResourceID("resources").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build()))
+			data := auditManifest(t, auditBase().WithIdentity(auditIdentity().WithResourceID("resources").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build()))
 			es := auditElements(t, data, "Resource")
 			for _, e := range es {
 				for _, a := range e.Attr {

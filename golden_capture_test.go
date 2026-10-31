@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// goldenBaseBuilder returns a fixed, deterministic builder (no payload files) for
+// goldenManifestBuilder returns a fixed, deterministic builder (no payload files) for
 // byte-equality capture. The configuration must match what the pre-rewrite struct
 // literal produced so the golden hashes remain valid.
 func goldenManifestBuilder() Builder {

@@ -107,10 +107,10 @@ func TestAuditSDKWindows(t *testing.T) {
 		negativeOld, negativeNew string
 	}{
 		{"protocol", func() msix.Builder {
-			return nativeBase(t, "Audit.SDK").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithDisplayName("Audit & Protocol").WithLogo("logo.png").Build()))
+			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithDisplayName("Audit & Protocol").WithLogo("logo.png").Build()))
 		}, `<uap:Protocol Name="go-msix-audit">`, `<uap:Protocol Name="go-msix-audit" DesktopAppInfo="bad">`},
 		{"shortcut", func() msix.Builder {
-			return nativeBase(t, "Audit.SDK").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewShortcut().WithFile(`$(Desktop)\GoMsixAudit.lnk`).WithIcon("app.exe").WithArguments(`--audit "A & B"`).WithDisplayName("Audit shortcut").Build()))
+			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewShortcut().WithFile(`$(Desktop)\GoMsixAudit.lnk`).WithIcon("app.exe").WithArguments(`--audit "A & B"`).WithDisplayName("Audit shortcut").Build()))
 		}, `desktop10:DisplayName="Audit shortcut"`, `DisplayName="Audit shortcut"`},
 		{"allow false", func() msix.Builder {
 			return nativeBase(t, "Audit.Assets").WithProperties(auditProperties().WithAllowExecution(false).WithFramework(true).Build())
@@ -122,13 +122,13 @@ func TestAuditSDKWindows(t *testing.T) {
 			return nativeBase(t, "Audit.Assets").WithProperties(auditProperties().WithFramework(true).Build())
 		}, `Version="1.2.3.0"`, `Version="1.x.3.0"`},
 		{"resource scale", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("scale100").WithProcessorArchitecture("neutral").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").Build())
+			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("scale100").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").Build())
 		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
 		{"resource dx", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("neutral").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
+			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`},
 		{"resource both", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("both").WithProcessorArchitecture("neutral").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").WithDXFeatureLevel("dx9").Build())
+			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("both").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").WithDXFeatureLevel("dx9").Build())
 		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
 	}
 	for _, tc := range cases {
@@ -182,7 +182,7 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	if os.Getenv("MSIX_WINDOWS_AUDIT") != "1" {
 		t.Skip("set MSIX_WINDOWS_AUDIT=1 for native deployment/shortcut/service validation")
 	}
-	nativeTool(t, "makeappx")
+	makeappx := nativeTool(t, "makeappx")
 	signtool := nativeTool(t, "signtool")
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "app.exe")
@@ -219,6 +219,10 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	data, err := auditBuild(b)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "signed.msix"), data, 0600))
+	if artifacts := os.Getenv("MSIX_AUDIT_ARTIFACTS"); artifacts != "" {
+		require.NoError(t, os.MkdirAll(artifacts, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(artifacts, "audit-signed.msix"), data, 0600))
+	}
 	// The service dispatcher uses the SCM-supplied name, so no fixed global service
 	// or package identity can collide with another runner/job.
 	asset := nativeBase(t, id+"Assets").WithSigning(signing).WithProperties(auditProperties().WithAllowExecution(false).WithFramework(true).Build()).AddFileFromBytes("app.exe", payload)
@@ -226,15 +230,20 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets.msix"), data, 0600))
 	nativePowerShell(t, `
-param($dir,$id,$shortcutName,$serviceName,$result,$signtool,$protocol)
+param($dir,$id,$shortcutName,$serviceName,$result,$signtool,$protocol,$makeappx)
 $root=$null; $leaf=$null
 try {
  $root=Import-Certificate -FilePath "$dir\root.cer" -CertStoreLocation Cert:\LocalMachine\Root
  $leaf=Import-Certificate -FilePath "$dir\leaf.cer" -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+ & $makeappx unpack /p "$dir\signed.msix" /d "$dir\unpacked" /o /nv
+ if ($LASTEXITCODE -ne 0) {throw 'native unpack failed'}
+ & $makeappx pack /d "$dir\unpacked" /p "$dir\sdk-validated.msix" /o
+ if ($LASTEXITCODE -ne 0) {throw 'native SDK deployment fixture validation failed'}
+ & $signtool verify /debug /pa "$dir\signed.msix"
+ $signtoolExit=$LASTEXITCODE
  $sig=Get-AuthenticodeSignature "$dir\signed.msix"
  if ($sig.Status -ne 'Valid') {throw "signature status: $($sig.Status) $($sig.StatusMessage)"}
- & $signtool verify /pa "$dir\signed.msix"
- if ($LASTEXITCODE -ne 0) {throw 'signtool verification failed'}
+ if ($signtoolExit -ne 0) {throw 'signtool verification failed'}
  Add-AppxPackage "$dir\signed.msix"
  $pkg=Get-AppxPackage -Name $id
  if (-not $pkg) {throw 'package missing after deployment'}
@@ -276,5 +285,5 @@ try {
  if ($leaf) {Remove-Item ("Cert:\LocalMachine\TrustedPeople\"+$leaf.Thumbprint)}
  if ($root) {Remove-Item ("Cert:\LocalMachine\Root\"+$root.Thumbprint)}
 }
-`, dir, id, shortcutName, serviceName, result, signtool, protocol)
+`, dir, id, shortcutName, serviceName, result, signtool, protocol, makeappx)
 }
