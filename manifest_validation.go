@@ -74,6 +74,22 @@ func validateCoreManifest(m *manifestData) error {
 		check(r.Scale == "" || r.DXFeatureLevel == "", fmt.Sprintf("resource[%d]", i), "must not combine Scale and DXFeatureLevel on one element")
 	}
 
+	check(len(m.Dependencies.TargetDeviceFamilies) > 0 && len(m.Dependencies.TargetDeviceFamilies) <= 128, "dependencies target device families", "must contain 1-128 entries")
+	for i, d := range m.Dependencies.TargetDeviceFamilies {
+		field := fmt.Sprintf("dependencies target device family[%d]", i)
+		check(asciiIdentifier.MatchString(d.Name), field+" name", "must be an ASCII identifier")
+		check(validVersion(d.MinVersion), field+" minimum version", "must be a four-component version")
+		check(validVersion(d.MaxVersionTested), field+" maximum version tested", "must be a four-component version")
+	}
+	for i, d := range m.Dependencies.PackageDependencies {
+		field := fmt.Sprintf("package dependency[%d]", i)
+		check(len(d.Name) >= 3 && len(d.Name) <= 50 && asciiIdentifier.MatchString(d.Name), field+" name", "must be a package name")
+		check(validVersion(d.MinVersion), field+" minimum version", "must be a four-component version")
+		if err := validatePublisher(d.Publisher); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", field, err))
+		}
+	}
+
 	text := func(s, field string, max int, required bool) {
 		if !required && s == "" {
 			return
@@ -89,6 +105,7 @@ func validateCoreManifest(m *manifestData) error {
 	text(m.Properties.DisplayName, "properties display name", 256, true)
 	text(m.Properties.PublisherDisplayName, "properties publisher display name", 256, true)
 	text(m.Properties.Description, "properties description", 2048, false)
+	check(!strings.ContainsFunc(m.Properties.Description, func(r rune) bool { return r < 0x20 }), "properties description", "must not contain control characters")
 	text(m.Properties.Logo, "properties logo", 256, true)
 	for i, a := range m.Applications {
 		field := fmt.Sprintf("application[%d]", i)
@@ -102,6 +119,7 @@ func validateCoreManifest(m *manifestData) error {
 		v := a.VisualElements
 		text(v.DisplayName, field+" display name", 256, true)
 		text(v.Description, field+" description", 2048, true)
+		check(!strings.ContainsFunc(v.Description, func(r rune) bool { return r < 0x20 }), field+" description", "must not contain control characters")
 		imagePath(v.Square150x150Logo, field+" square 150x150 logo")
 		imagePath(v.Square44x44Logo, field+" square 44x44 logo")
 		check(v.AppListEntry == "" || v.AppListEntry == "default" || v.AppListEntry == "none", field+" app list entry", "must be default or none")

@@ -137,6 +137,11 @@ func TestAuditCoreManifest(t *testing.T) {
 		{"architecture", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithProcessorArchitecture("bogus").Build()) }},
 		{"resource id", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithResourceID("bad id").Build()) }},
 		{"publisher", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithPublisher("not a DN").Build()) }},
+		{"dependency version", func(b msix.Builder) {
+			b.WithDependencies(msix.NewDependencies().AddTargetDeviceFamily("Windows.Desktop", "bad", "10.0.26100.0").Build())
+		}},
+		{"dependency missing", func(b msix.Builder) { b.WithDependencies(msix.NewDependencies().Build()) }},
+		{"description control", func(b msix.Builder) { b.WithProperties(auditProperties().WithDescription("a\tb").Build()) }},
 		{"properties required", func(b msix.Builder) { b.WithProperties(msix.NewProperties().Build()) }},
 		{"padded name", func(b msix.Builder) { b.WithProperties(auditProperties().WithDisplayName(" Padded ").Build()) }},
 		{"missing logo", func(b msix.Builder) { b.WithProperties(auditProperties().WithLogo("missing.png").Build()) }},
