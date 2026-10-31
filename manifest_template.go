@@ -622,7 +622,7 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
         </com:Extension>
 {{- end }}
 {{- if .Service }}
-        <desktop6:Extension Category="{{ xmlEscape .Category }}">
+        <desktop6:Extension Category="{{ xmlEscape .Category }}" Executable="{{ xmlEscape .Executable }}" EntryPoint="{{ xmlEscape .EntryPoint }}">
           <desktop6:Service Name="{{ xmlEscape .Service.Name }}" StartupType="{{ xmlEscape .Service.StartupType }}" StartAccount="{{ xmlEscape .Service.StartAccount }}" />
         </desktop6:Extension>
 {{- end }}
@@ -919,7 +919,7 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
         </desktop7:Extension>
 {{- end }}
 {{- if .ServiceDesktop7 }}
-        <desktop7:Extension Category="{{ xmlEscape .Category }}">
+        <desktop7:Extension Category="{{ xmlEscape .Category }}" Executable="{{ xmlEscape .Executable }}" EntryPoint="{{ xmlEscape .EntryPoint }}">
           <desktop7:Service Name="{{ xmlEscape .ServiceDesktop7.Name }}"{{ if .ServiceDesktop7.StartupType }} StartupType="{{ xmlEscape .ServiceDesktop7.StartupType }}"{{ end }}{{ if .ServiceDesktop7.StartAccount }} StartAccount="{{ xmlEscape .ServiceDesktop7.StartAccount }}"{{ end }}{{ if .ServiceDesktop7.Arguments }} Arguments="{{ xmlEscape .ServiceDesktop7.Arguments }}"{{ end }} />
         </desktop7:Extension>
 {{- end }}

@@ -90,6 +90,22 @@ func validateCoreManifest(m *manifestData) error {
 		}
 	}
 
+	if m.Properties.ResourcePackage {
+		kinds := map[string]bool{}
+		for _, r := range m.Resources {
+			if r.Language != "" {
+				kinds["Language"] = true
+			}
+			if r.Scale != "" {
+				kinds["Scale"] = true
+			}
+			if r.DXFeatureLevel != "" {
+				kinds["DXFeatureLevel"] = true
+			}
+		}
+		check(len(kinds) <= 1, "resource package qualifiers", "must use only one qualifier type")
+	}
+
 	text := func(s, field string, max int, required bool) {
 		if !required && s == "" {
 			return
@@ -115,6 +131,11 @@ func validateCoreManifest(m *manifestData) error {
 		if a.Executable != "" {
 			p, err := manifestPath(a.Executable)
 			check(err == nil && len(a.Executable) <= 256 && strings.EqualFold(path.Ext(p), ".exe"), field+" executable", "must be a package-relative .exe path of at most 256 characters")
+		}
+		for j, e := range a.Extensions {
+			if e.Service != nil || e.ServiceDesktop7 != nil {
+				check(a.Executable != "" && a.EntryPoint != "", fmt.Sprintf("%s service extension[%d]", field, j), "requires an application executable and entry point")
+			}
 		}
 		v := a.VisualElements
 		text(v.DisplayName, field+" display name", 256, true)

@@ -163,7 +163,7 @@ func TestDeadApplicationExtensions(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			b := baseExtBuilder().AddApplication(
-				msix.NewApplication().WithID("App").WithExecutable("App.exe").
+				msix.NewApplication().WithID("App").WithExecutable("App.exe").WithEntryPoint("Windows.FullTrustApplication").
 					WithVisualElements(msix.NewVisualElements().
 						WithDisplayName("App").WithDescription("App").WithBackgroundColor("#000").
 						WithSquare150x150Logo("a.png").WithSquare44x44Logo("b.png").Build()).
@@ -203,7 +203,7 @@ func TestDeadPackageExtensions(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			b := baseExtBuilder().AddApplication(
-				msix.NewApplication().WithID("App").WithExecutable("App.exe").
+				msix.NewApplication().WithID("App").WithExecutable("App.exe").WithEntryPoint("Windows.FullTrustApplication").
 					WithVisualElements(msix.NewVisualElements().
 						WithDisplayName("App").WithDescription("App").WithBackgroundColor("#000").
 						WithSquare150x150Logo("a.png").WithSquare44x44Logo("b.png").Build()).

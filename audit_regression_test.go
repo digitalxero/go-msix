@@ -288,7 +288,7 @@ func TestAuditManifestSerialization(t *testing.T) {
 	}
 	for _, mode := range []string{"scale", "dx", "both"} {
 		t.Run("resource "+mode, func(t *testing.T) {
-			r := msix.NewResource().WithLanguage("en-us")
+			r := msix.NewResource()
 			if mode != "dx" {
 				r.WithScale("100")
 			}
@@ -297,6 +297,7 @@ func TestAuditManifestSerialization(t *testing.T) {
 			}
 			b := auditBase().WithIdentity(auditIdentity().WithResourceID("resources").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build())
 			if mode == "both" {
+				b.WithIdentity(auditIdentity().Build()).WithProperties(auditProperties().WithFramework(true).Build())
 				b.AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 			}
 			data := auditManifest(t, b)
@@ -369,5 +370,24 @@ func TestAuditChangingSources(t *testing.T) {
 				assert.Equal(t, 1, opens)
 			})
 		}
+	}
+}
+
+func TestAuditServiceExecutableContext(t *testing.T) {
+	for _, ext := range []msix.ApplicationExtension{msix.NewService().WithName("AuditService").WithStartupType("manual").WithStartAccount("localSystem").Build(), msix.NewServiceDesktop7().WithName("AuditService").WithStartupType("manual").WithStartAccount("localSystem").Build()} {
+		data := auditManifest(t, auditBase().AddApplication(auditApp("Service", ext)))
+		var found bool
+		for _, e := range auditElements(t, data, "Extension") {
+			attrs := map[string]string{}
+			for _, a := range e.Attr {
+				attrs[a.Name.Local] = a.Value
+			}
+			if attrs["Category"] == "windows.service" {
+				found = true
+				assert.Equal(t, "app.exe", attrs["Executable"])
+				assert.Equal(t, "Windows.FullTrustApplication", attrs["EntryPoint"])
+			}
+		}
+		assert.True(t, found)
 	}
 }

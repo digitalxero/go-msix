@@ -128,7 +128,7 @@ func TestAuditSDKWindows(t *testing.T) {
 			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`},
 		{"resource both", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("both").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
+			return nativeBase(t, "Audit.Resources").WithProperties(auditProperties().WithFramework(true).Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
 	}
 	for _, tc := range cases {

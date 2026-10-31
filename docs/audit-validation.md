@@ -74,3 +74,11 @@ public receipts for both constraints are retained alongside the original regress
 MakeAppx mapping authoring ignores supplied block-map/signature footprints; its
 controls assert omission/regeneration. The library deliberately rejects ownership
 conflicts instead of silently discarding caller input.
+
+Native service validation also requires the enclosing windows.service extension
+to declare Executable and EntryPoint explicitly. The renderer now forwards the
+owning application's fields for desktop6/desktop7 services, and validates that
+they exist. This prerequisite was found while establishing native #9 coverage;
+`TestAuditServiceExecutableContext` retains its separate first-red receipt.
+A resource package may use only one qualifier type; the combined namespace
+positive uses a framework package with no applications and separate resource entries.

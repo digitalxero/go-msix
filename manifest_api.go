@@ -474,7 +474,12 @@ func (a *application) data() applicationData {
 		out.VisualElements = a.ve.(*visualElements).data()
 	}
 	for _, e := range a.exts {
-		out.Extensions = append(out.Extensions, e.toAppExtData())
+		ext := e.toAppExtData()
+		if ext.Service != nil || ext.ServiceDesktop7 != nil {
+			ext.Executable = out.Executable
+			ext.EntryPoint = out.EntryPoint
+		}
+		out.Extensions = append(out.Extensions, ext)
 	}
 	return out
 }
