@@ -195,12 +195,14 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	require.NoError(t, err)
 	leafKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	rootT := &x509.Certificate{SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: "go-msix audit root"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign}
+	// Windows clock granularity can repeat UnixNano values across issuance.
+	// Issuer+serial must identify the leaf unambiguously in the CMS chain.
+	rootT := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "go-msix audit root"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageCRLSign}
 	rootDER, err := x509.CreateCertificate(rand.Reader, rootT, rootT, rootKey.Public(), rootKey)
 	require.NoError(t, err)
 	root, err := x509.ParseCertificate(rootDER)
 	require.NoError(t, err)
-	leafT := &x509.Certificate{SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: "Test"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}}
+	leafT := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "Test"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafT, root, leafKey.Public(), rootKey)
 	require.NoError(t, err)
 	leaf, err := x509.ParseCertificate(leafDER)
