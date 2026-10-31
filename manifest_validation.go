@@ -274,7 +274,7 @@ func startPagePath(value, packageName string) (string, error) {
 
 // Only documented MRT qualifiers count, so an unrelated same-named file cannot
 // hide a missing image. Both dot-qualified files and qualifier directories work.
-var assetQualifier = regexp.MustCompile(`(?i)^(scale-[0-9]+|targetsize-[0-9]+|contrast-(standard|high|black|white)|(altform|alternateform|language|homeregion|layoutdir|layoutdirection|dxfl|dxfeaturelevel|configuration|devicefamily|custom)-[a-z0-9-]+)$`)
+var assetQualifier = regexp.MustCompile(`(?i)^(scale-[0-9]+|targetsize-[0-9]+|contrast-(standard|high|black|white)|(altform|alternateform|language|lang|homeregion|layoutdir|layoutdirection|dxfl|dxfeaturelevel|configuration|devicefamily|custom)-[a-z0-9-]+)$`)
 var assetLanguage = regexp.MustCompile(`(?i)^[a-z]{2,3}(-[a-z0-9]{2,8})*$`)
 
 func assetQualifiers(value string, folder bool) bool {

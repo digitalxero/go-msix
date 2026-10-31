@@ -410,6 +410,7 @@ func TestAuditQualifiedAssets(t *testing.T) {
 	for _, name := range []string{
 		"Assets/contrast-high_scale-400/Logo.png",
 		"Assets/Logo.language-en_scale-200.png",
+		"Assets/Logo.lang-en-US_scale-200.png",
 		"Assets/layoutdir-rtl/Logo.png",
 		"Assets/Logo.homeregion-US.png",
 		"Assets/Logo.configuration-designer.png",
