@@ -430,3 +430,58 @@ func TestAuditQualifiedAssets(t *testing.T) {
 		})
 	}
 }
+
+func TestReviewLocalStartPageURLs(t *testing.T) {
+	for _, value := range []string{"index.html#home", "ms-appx-web:///index.html?mode=compact#home", "ms-appx-web://Audit.App/index.html?mode=compact#home", "ms-appx-web:///page%20name.html?mode=compact"} {
+		t.Run(value, func(t *testing.T) {
+			b := auditBase().AddFileFromBytes("index.html", []byte("<html></html>")).AddFileFromBytes("page name.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage(value).WithVisualElements(auditVisual()).Build())
+			data, err := auditBuild(b)
+			require.NoError(t, err)
+			apps := auditElements(t, unzip(t, data)["AppxManifest.xml"], "Application")
+			require.Len(t, apps, 1)
+			var got string
+			for _, a := range apps[0].Attr {
+				if a.Name.Local == "StartPage" {
+					got = a.Value
+				}
+			}
+			assert.Equal(t, value, got)
+		})
+	}
+	for _, value := range []string{"missing.html#home", "ms-appx-web:///missing.html?mode=compact", "ms-appx-web://Audit.App/missing.html#home", "index.html?mode=compact", "ms-appx-web:///../outside.html", "ms-appx-web:///%2e%2e/outside.html", "ms-appx-web:////server/share.html", "//server/share.html"} {
+		t.Run(value, func(t *testing.T) {
+			data, err := auditBuild(auditBase().AddFileFromBytes("index.html", nil).AddApplication(msix.NewApplication().WithID("Web").WithStartPage(value).WithVisualElements(auditVisual()).Build()))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "start page")
+			assert.Empty(t, data)
+		})
+	}
+	for _, value := range []string{"https://example.com/index.html?mode=compact#home", "ms-appx-web://Dependency.Package/index.html?mode=compact"} {
+		_, err := auditBuild(auditBase().AddApplication(msix.NewApplication().WithID("Hosted").WithStartPage(value).WithVisualElements(auditVisual()).Build()))
+		require.NoError(t, err)
+	}
+}
+
+func TestReviewExtensionLogoReferences(t *testing.T) {
+	for _, kind := range []string{"protocol", "association"} {
+		for _, logo := range []string{"", "logo.png", "Assets/icon.png", "missing.png"} {
+			t.Run(kind+"/"+logo, func(t *testing.T) {
+				var ext msix.ApplicationExtension
+				if kind == "protocol" {
+					ext = msix.NewProtocol().WithName("audit").WithLogo(logo).Build()
+				} else {
+					ext = msix.NewFileTypeAssociation().WithName("audit").WithLogo(logo).AddSupportedFileType(msix.NewFileType().WithExtension(".audit").Build()).Build()
+				}
+				b := auditBase().AddApplication(auditApp("App", ext)).AddFileFromBytes("Assets/icon.scale-200.png", []byte("image"))
+				data, err := auditBuild(b)
+				if logo == "missing.png" {
+					require.ErrorContains(t, err, "extension[0]")
+					assert.Contains(t, err.Error(), "logo")
+					assert.Empty(t, data)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	}
+}

@@ -109,6 +109,19 @@ func TestAuditSDKWindows(t *testing.T) {
 		{"protocol", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithDisplayName("Audit & Protocol").WithLogo("logo.png").Build()))
 		}, `<uap:Protocol Name="go-msix-audit">`, `<uap:Protocol Name="go-msix-audit" DesktopAppInfo="bad">`},
+		{"local page fragment", func() msix.Builder {
+			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("index.html#home").WithVisualElements(nativeVisual()).Build())
+		}, `StartPage="index.html#home"`, `StartPage="index.html?mode=compact"`},
+		{"package page query", func() msix.Builder {
+			return nativeBase(t, "Audit.Web").AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("index.html", []byte("<html></html>")).AddApplication(msix.NewApplication().WithID("Web").WithStartPage("ms-appx-web:///index.html?mode=compact#home").WithVisualElements(nativeVisual()).Build())
+		}, `StartPage="ms-appx-web:///index.html?mode=compact#home"`, `StartPage="ftp://example.com/index.html"`},
+		{"qualified protocol logo", func() msix.Builder {
+			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddFileFromBytes("Assets/protocol.scale-200.png", nativePNG(t, 88)).AddApplication(nativeApp("App", msix.NewProtocol().WithName("go-msix-audit").WithLogo("Assets/protocol.png").Build()))
+		}, `<uap:Logo>Assets/protocol.png</uap:Logo>`, `<uap:Logo>bad:protocol.png</uap:Logo>`},
+		{"qualified association logo", func() msix.Builder {
+			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddFileFromBytes("Assets/association.scale-200.png", nativePNG(t, 88)).AddApplication(nativeApp("App", msix.NewFileTypeAssociation().WithName("audit").WithLogo("Assets/association.png").AddSupportedFileType(msix.NewFileType().WithExtension(".audit").Build()).Build()))
+		}, `<uap:Logo>Assets/association.png</uap:Logo>`, `<uap:Logo>bad:association.png</uap:Logo>`},
+
 		{"shortcut", func() msix.Builder {
 			return nativeBase(t, "Audit.SDK").WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", []byte("MZ")).AddApplication(nativeApp("App", msix.NewShortcut().WithFile(`$(Desktop)\GoMsixAudit.lnk`).WithIcon("app.exe").WithArguments(`--audit "A & B"`).WithDisplayName("Audit shortcut").Build()))
 		}, `desktop10:DisplayName="Audit shortcut"`, `DisplayName="Audit shortcut"`},

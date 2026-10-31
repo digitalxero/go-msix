@@ -137,6 +137,12 @@ func validateCoreManifest(m *manifestData) error {
 			if e.Service != nil || e.ServiceDesktop7 != nil {
 				check(a.Executable != "" && a.EntryPoint != "", fmt.Sprintf("%s service extension[%d]", field, j), "requires an application executable and entry point")
 			}
+			if e.Protocol != nil && e.Protocol.Logo != "" {
+				imagePath(e.Protocol.Logo, fmt.Sprintf("%s extension[%d] protocol logo", field, j))
+			}
+			if e.FileTypeAssociation != nil && e.FileTypeAssociation.Logo != "" {
+				imagePath(e.FileTypeAssociation.Logo, fmt.Sprintf("%s extension[%d] file association logo", field, j))
+			}
 		}
 		v := a.VisualElements
 		text(v.DisplayName, field+" display name", 256, true)
@@ -165,19 +171,7 @@ func (b *builder) validateReferences(m *manifestData) error {
 		files[windowsPathKey(f.packagePath)] = true
 	}
 	var errs []error
-	check := func(value, field string, asset bool) {
-		if value == "" {
-			return
-		}
-		// Resource references are resolved at activation by MRT, not as literal parts.
-		if asset && strings.HasPrefix(value, "ms-resource:") {
-			return
-		}
-		p, err := manifestPath(value)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("msix: %s: %w", field, err))
-			return
-		}
+	lookup := func(p, field string, asset bool) {
 		if files[windowsPathKey(p)] {
 			return
 		}
@@ -188,20 +182,33 @@ func (b *builder) validateReferences(m *manifestData) error {
 				}
 			}
 		}
-		errs = append(errs, fmt.Errorf("msix: %s references missing payload %q", field, value))
+		errs = append(errs, fmt.Errorf("msix: %s references missing payload %q", field, p))
 	}
+	check := func(value, field string, asset bool) {
+		if value == "" {
+			return
+		}
+		if asset && strings.HasPrefix(value, "ms-resource:") {
+			return
+		}
+		p, err := manifestPath(value)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("msix: %s: %w", field, err))
+			return
+		}
+		lookup(p, field, asset)
+	}
+
 	check(m.Properties.Logo, "properties logo", true)
 	for i, a := range m.Applications {
 		field := fmt.Sprintf("application[%d]", i)
 		check(a.Executable, field+" executable", false)
 		if a.StartPage != "" {
-			u, err := url.Parse(a.StartPage)
+			p, err := startPagePath(a.StartPage, m.Identity.Name)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("msix: %s start page: %w", field, err))
-			} else if u.Scheme == "" {
-				check(a.StartPage, field+" start page", false)
-			} else if (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "ms-appx-web") || (u.Scheme != "ms-appx-web" && u.Host == "") {
-				errs = append(errs, fmt.Errorf("msix: %s start page has unsupported URI %q", field, a.StartPage))
+			} else if p != "" {
+				lookup(p, field+" start page", false)
 			}
 		}
 		check(a.VisualElements.Square150x150Logo, field+" square 150x150 logo", true)
@@ -214,8 +221,56 @@ func (b *builder) validateReferences(m *manifestData) error {
 		if v := a.VisualElements.SplashScreen; v != nil {
 			check(v.Image, field+" splash image", true)
 		}
+		for j, e := range a.Extensions {
+			ext := fmt.Sprintf("%s extension[%d]", field, j)
+			if e.Protocol != nil {
+				check(e.Protocol.Logo, ext+" protocol logo", true)
+			}
+			if e.FileTypeAssociation != nil {
+				check(e.FileTypeAssociation.Logo, ext+" file association logo", true)
+			}
+		}
 	}
 	return errors.Join(errs...)
+}
+
+// StartPage's local file form and URI form have different schema character
+// rules. Match only the parsed path; leave query/fragment text in the manifest.
+// Explicit ms-appx-web authorities can name dependencies in the package graph.
+func startPagePath(value, packageName string) (string, error) {
+	u, err := url.Parse(strings.ReplaceAll(value, `\`, "/"))
+	if err != nil {
+		return "", err
+	}
+	p := u.Path
+	switch u.Scheme {
+	case "":
+		if strings.ContainsAny(value, "?%") {
+			return "", errors.New("relative queries and escapes require an explicit ms-appx-web URI")
+		}
+		if _, err := manifestPath(value); err != nil {
+			return "", err
+		}
+	case "http", "https":
+		if u.Host == "" {
+			return "", errors.New("HTTP(S) URI requires a host")
+		}
+		return "", nil
+	case "ms-appx-web":
+		if !strings.HasPrefix(strings.ToLower(value), "ms-appx-web://") {
+			return "", errors.New("ms-appx-web URI requires // authority syntax")
+		}
+		if u.Host != "" && !strings.EqualFold(u.Host, packageName) {
+			return "", nil
+		}
+		p = strings.TrimPrefix(p, "/")
+	default:
+		return "", fmt.Errorf("unsupported URI %q", value)
+	}
+	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) {
+		return "", fmt.Errorf("URI %q must name a package-relative file", value)
+	}
+	return payloadPath(p)
 }
 
 // Only documented MRT qualifiers count, so an unrelated same-named file cannot

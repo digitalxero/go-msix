@@ -83,3 +83,12 @@ they exist. This prerequisite was found while establishing native #9 coverage;
 `TestAuditServiceExecutableContext` retains its separate first-red receipt.
 A resource package may use only one qualifier type; the combined namespace
 positive uses a framework package with no applications and separate resource entries.
+
+The review follow-up also checks protocol/file-association logos and StartPage's
+underlying local file while preserving the authored URI. Local fragments and
+explicit ms-appx-web queries retain their original manifest text. Relative queries
+such as `index.html?mode=compact` fail the foundation filename schema; callers use
+`ms-appx-web:///index.html?mode=compact` for that form. HTTP(S) pages and explicit
+other-package authorities keep their documented external resolution behavior.
+Public first-red receipts are in `review-first-red.txt`; the SDK distinguishes
+relative queries from valid fragment/explicit-URI forms with positive/negative controls.
