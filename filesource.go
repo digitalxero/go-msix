@@ -8,8 +8,8 @@ import (
 
 // fileSource is a re-openable byte source. open may be called more than once and
 // each call returns a fresh reader positioned at the start. This is what lets the
-// build engine read payloads without ever holding a whole file in memory, and read
-// the same source again for the signed path's digest + output replays.
+// build engine read payloads without ever holding a whole file in memory. Each
+// Build snapshots its first read for digest and output replays.
 type fileSource interface {
 	open() (io.ReadCloser, error)
 }

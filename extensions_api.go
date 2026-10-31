@@ -891,6 +891,8 @@ type ShortcutBuilder interface {
 	WithFile(string) ShortcutBuilder
 	WithIcon(string) ShortcutBuilder
 	WithArguments(string) ShortcutBuilder
+	// WithDisplayName emits desktop10:DisplayName, requiring OS support for
+	// the desktop10 manifest namespace; older systems may ignore this label.
 	WithDisplayName(string) ShortcutBuilder
 	WithDescription(string) ShortcutBuilder
 	Build() Shortcut

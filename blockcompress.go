@@ -14,7 +14,7 @@ import (
 // compressedEntry holds everything needed to (a) emit a ZIP entry via CreateRaw and
 // (b) describe the entry in the block map, without keeping the payload in memory.
 // For Deflate entries the compressed bytes live in a temp spill file; for Store
-// entries the bytes are re-read from the source at write time.
+// entries use an immutable snapshot too.
 type compressedEntry struct {
 	name             string
 	method           uint16 // zip.Deflate or zip.Store
@@ -23,8 +23,9 @@ type compressedEntry struct {
 	crc32            uint32
 	lfhSize          uint64
 	blocks           []blockEntry
-	spillPath        string     // "" for Store entries
-	source           fileSource // used to re-read bytes for Store entries
+	spillPath        string     // empty only for immutable empty Store entries
+	source           fileSource // immutable empty snapshot when no spill is needed
+	contentHash      [32]byte   // SHA256 of the exact bytes consumed during preparation
 }
 
 // readBlock fills buf from r, returning the number of bytes read. A short final
@@ -73,7 +74,7 @@ func compressSourceToSpill(name string, src fileSource, forceStore bool, tempDir
 	}
 
 	if forceStore || firstN == 0 {
-		return storeStreaming(name, src, rc, first[:firstN])
+		return storeStreaming(name, rc, first[:firstN], tempDir)
 	}
 
 	spill, err := os.CreateTemp(tempDir, "msix-cmp-*")
@@ -89,6 +90,7 @@ func compressSourceToSpill(name string, src fileSource, forceStore bool, tempDir
 
 	bw := bufio.NewWriterSize(spill, blockSize)
 	crc := crc32.NewIEEE()
+	contentHash := sha256.New()
 	var blocks []blockEntry
 	var uncompressed, compressed uint64
 
@@ -103,6 +105,7 @@ func compressSourceToSpill(name string, src fileSource, forceStore bool, tempDir
 
 		block := cur[:curN]
 		crc.Write(block)
+		contentHash.Write(block)
 		h := sha256.Sum256(block)
 
 		before := compressed
@@ -144,23 +147,45 @@ func compressSourceToSpill(name string, src fileSource, forceStore bool, tempDir
 		lfhSize:          computeLfhSize(name),
 		blocks:           blocks,
 		spillPath:        spillPath,
-		source:           src,
+		contentHash:      [32]byte(contentHash.Sum(nil)),
 	}, nil
 }
 
 // storeStreaming builds a Store entry: it computes the CRC32 and per-64KB block
-// SHA256 hashes by streaming the source, without compressing or spilling. The bytes
-// are re-read from the source when the entry is written.
-func storeStreaming(name string, src fileSource, rc io.Reader, first []byte) (*compressedEntry, error) {
+// SHA256 hashes while spilling the same bytes. Empty inputs use an immutable empty
+// snapshot. Neither digest replay nor ZIP output reopens the caller source.
+func storeStreaming(name string, rc io.Reader, first []byte, tempDir string) (*compressedEntry, error) {
+	var spill *os.File
+	var spillPath string
+	if len(first) > 0 {
+		var err error
+		spill, err = os.CreateTemp(tempDir, "msix-store-*")
+		if err != nil {
+			return nil, err
+		}
+		spillPath = spill.Name()
+		defer func() {
+			if spill != nil {
+				spill.Close()
+				os.Remove(spillPath)
+			}
+		}()
+	}
+	contentHash := sha256.New()
 	crc := crc32.NewIEEE()
 	var blocks []blockEntry
 	var total uint64
 
-	process := func(block []byte) {
+	process := func(block []byte) error {
+		if _, err := spill.Write(block); err != nil {
+			return err
+		}
+		contentHash.Write(block)
 		crc.Write(block)
 		h := sha256.Sum256(block)
 		blocks = append(blocks, blockEntry{Hash: h}) // no CompressedSize for Store
 		total += uint64(len(block))
+		return nil
 	}
 
 	if len(first) == 0 {
@@ -169,7 +194,9 @@ func storeStreaming(name string, src fileSource, rc io.Reader, first []byte) (*c
 		h := sha256.Sum256(nil)
 		blocks = append(blocks, blockEntry{Hash: h})
 	} else {
-		process(first)
+		if err := process(first); err != nil {
+			return nil, err
+		}
 		buf := make([]byte, blockSize)
 		for {
 			n, err := readBlock(rc, buf)
@@ -179,10 +206,18 @@ func storeStreaming(name string, src fileSource, rc io.Reader, first []byte) (*c
 			if n == 0 {
 				break
 			}
-			process(buf[:n])
+			if err := process(buf[:n]); err != nil {
+				return nil, err
+			}
 		}
 	}
 
+	if spill != nil {
+		if err := spill.Close(); err != nil {
+			return nil, err
+		}
+		spill = nil
+	}
 	return &compressedEntry{
 		name:             name,
 		method:           zip.Store,
@@ -191,8 +226,9 @@ func storeStreaming(name string, src fileSource, rc io.Reader, first []byte) (*c
 		crc32:            crc.Sum32(),
 		lfhSize:          computeLfhSize(name),
 		blocks:           blocks,
-		spillPath:        "",
-		source:           src,
+		spillPath:        spillPath,
+		source:           bytesFileSource{},
+		contentHash:      [32]byte(contentHash.Sum(nil)),
 	}, nil
 }
 

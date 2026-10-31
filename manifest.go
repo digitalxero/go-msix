@@ -29,6 +29,7 @@ type propertiesData struct {
 	Framework            bool
 	ResourcePackage      bool
 	AllowExecution       bool
+	AllowExecutionSet    bool
 	ModificationPackage  bool // rescap6:ModificationPackage
 }
 

@@ -268,7 +268,7 @@ func TestIntegration_SimplePackage(t *testing.T) {
 	makemsixUnpack := findMakemsixUnpack(t)
 
 	// Build with go-msix.
-	b := simpleBuilder()
+	b := simpleBuilder().AddFileFromBytes("Assets/required.scale-100.png", []byte("PNG required logo"))
 
 	exeContent := []byte("MZ fake exe content for integration test")
 	b.AddFileFromBytes("App.exe", exeContent)
@@ -289,6 +289,7 @@ func TestIntegration_SimplePackage(t *testing.T) {
 	// Create temp input dir for makemsix.
 	inputDir := t.TempDir()
 	writeTestFile(t, inputDir, "AppxManifest.xml", goManifest)
+	writeTestFile(t, inputDir, "Assets/required.scale-100.png", []byte("PNG required logo"))
 	writeTestFile(t, inputDir, "App.exe", exeContent)
 
 	// Run makemsix pack.
@@ -317,7 +318,7 @@ func TestIntegration_PackageWithSubdirectories(t *testing.T) {
 	makemsixPack := findMakemsixPack(t)
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := simpleBuilder()
+	b := simpleBuilder().AddFileFromBytes("Assets/required.scale-100.png", []byte("PNG required logo"))
 
 	payloads := map[string][]byte{
 		"App.exe":          []byte("MZ fake exe"),
@@ -341,6 +342,7 @@ func TestIntegration_PackageWithSubdirectories(t *testing.T) {
 	// Create input dir with subdirectories.
 	inputDir := t.TempDir()
 	writeTestFile(t, inputDir, "AppxManifest.xml", goManifest)
+	writeTestFile(t, inputDir, "Assets/required.scale-100.png", []byte("PNG required logo"))
 	for path, data := range payloads {
 		writeTestFile(t, inputDir, path, data)
 	}
@@ -367,7 +369,7 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 	makemsixPack := findMakemsixPack(t)
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := simpleBuilder()
+	b := simpleBuilder().AddFileFromBytes("Assets/required.scale-100.png", []byte("PNG required logo"))
 
 	// Create a ~200KB file (3+ 64KB blocks).
 	largeData := make([]byte, 200*1024)
@@ -389,6 +391,7 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 
 	inputDir := t.TempDir()
 	writeTestFile(t, inputDir, "AppxManifest.xml", goManifest)
+	writeTestFile(t, inputDir, "Assets/required.scale-100.png", []byte("PNG required logo"))
 	writeTestFile(t, inputDir, "App.exe", []byte("MZ"))
 	writeTestFile(t, inputDir, "large.dat", largeData)
 
@@ -415,7 +418,7 @@ func TestIntegration_LargeFileMultiBlock(t *testing.T) {
 func TestIntegration_UnpackValidation(t *testing.T) {
 	makemsixUnpack := findMakemsixUnpack(t)
 
-	b := simpleBuilder()
+	b := simpleBuilder().AddFileFromBytes("Assets/required.scale-100.png", []byte("PNG required logo"))
 
 	payloads := map[string][]byte{
 		"App.exe":         []byte("MZ fake exe for unpack test"),
@@ -449,7 +452,7 @@ func simpleBuilder() Builder {
 		WithProperties(NewProperties().
 			WithDisplayName("Integration Test App").
 			WithPublisherDisplayName("Integration Test").
-			WithLogo("Assets/logo.png").
+			WithLogo("Assets/required.png").
 			Build()).
 		WithDependencies(NewDependencies().
 			AddTargetDeviceFamily("Windows.Desktop", "10.0.17763.0", "10.0.22621.0").
@@ -464,8 +467,8 @@ func simpleBuilder() Builder {
 				WithDisplayName("Integration Test App").
 				WithDescription("Integration test application").
 				WithBackgroundColor("transparent").
-				WithSquare150x150Logo("Assets/logo.png").
-				WithSquare44x44Logo("Assets/logo.png").
+				WithSquare150x150Logo("Assets/required.png").
+				WithSquare44x44Logo("Assets/required.png").
 				Build()).
 			Build())
 }

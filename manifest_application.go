@@ -41,7 +41,9 @@ type splashScreenData struct {
 // appExtData represents an extension within an Application.
 // Only one of the typed fields should be non-nil, corresponding to the Category.
 type appExtData struct {
-	Category string
+	Category   string
+	Executable string // application context required by windows.service
+	EntryPoint string
 
 	// uap extensions
 	Protocol            *protocolData

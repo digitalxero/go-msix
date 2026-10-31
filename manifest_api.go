@@ -51,6 +51,8 @@ type PropertiesBuilder interface {
 	WithDescription(string) PropertiesBuilder
 	WithFramework(bool) PropertiesBuilder
 	WithResourcePackage(bool) PropertiesBuilder
+	// WithAllowExecution preserves an explicit false; omission uses Windows default true.
+	// Requires Windows 10 version 1803 or later.
 	WithAllowExecution(bool) PropertiesBuilder
 	WithModificationPackage(bool) PropertiesBuilder
 	Build() Properties
@@ -73,7 +75,11 @@ func (p *properties) WithResourcePackage(v bool) PropertiesBuilder {
 	p.d.ResourcePackage = v
 	return p
 }
-func (p *properties) WithAllowExecution(v bool) PropertiesBuilder { p.d.AllowExecution = v; return p }
+func (p *properties) WithAllowExecution(v bool) PropertiesBuilder {
+	p.d.AllowExecution = v
+	p.d.AllowExecutionSet = true
+	return p
+}
 func (p *properties) WithModificationPackage(v bool) PropertiesBuilder {
 	p.d.ModificationPackage = v
 	return p
@@ -468,7 +474,12 @@ func (a *application) data() applicationData {
 		out.VisualElements = a.ve.(*visualElements).data()
 	}
 	for _, e := range a.exts {
-		out.Extensions = append(out.Extensions, e.toAppExtData())
+		ext := e.toAppExtData()
+		if ext.Service != nil || ext.ServiceDesktop7 != nil {
+			ext.Executable = out.Executable
+			ext.EntryPoint = out.EntryPoint
+		}
+		out.Extensions = append(out.Extensions, ext)
 	}
 	return out
 }

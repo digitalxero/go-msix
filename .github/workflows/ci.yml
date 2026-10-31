@@ -95,3 +95,25 @@ jobs:
           Write-Host "installed: $($pkg.PackageFullName)"
           Remove-AppxPackage $pkg.PackageFullName
           Write-Host "windows-signature: ALL CHECKS PASSED"
+
+  windows-audit:
+    name: Windows audit acceptance
+    runs-on: windows-latest
+    env:
+      MSIX_WINDOWS_AUDIT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Public regressions, native publisher, SDK controls, and deployment
+        env:
+          MSIX_AUDIT_ARTIFACTS: ${{ runner.temp }}/msix-audit-artifacts
+        shell: powershell
+        run: go test -short -v -count=1 -timeout=15m .
+      - name: Retain audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-audit-diagnostics
+          path: ${{ runner.temp }}/msix-audit-artifacts

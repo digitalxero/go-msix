@@ -44,7 +44,10 @@ func stdManifestBuilder() msix.Builder {
 				WithDisplayName("Test App").WithDescription("Test application").WithBackgroundColor("#464646").
 				WithSquare150x150Logo("Assets/150.png").WithSquare44x44Logo("Assets/44.png").
 				Build()).
-			Build())
+			Build()).
+		AddFileFromBytes("Assets/logo.scale-100.png", []byte("logo")).
+		AddFileFromBytes("Assets/150.scale-100.png", []byte("150")).
+		AddFileFromBytes("Assets/44.scale-100.png", []byte("44"))
 }
 
 func unzip(t *testing.T, data []byte) map[string][]byte {

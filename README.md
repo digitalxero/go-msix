@@ -83,6 +83,12 @@ func main() {
 ```
 
 Configuration and payload-source errors are deferred and returned from `Build`.
+The builder rejects colliding/reserved Windows payload names, invalid core
+manifest values, missing referenced executables/images and duplicate application
+or extension registrations. Qualified image variants are supported; applications
+without an executable remain available for documented activation-only modes.
+See [audit validation](docs/audit-validation.md) for the individual checks and
+native validation boundaries.
 
 ### Build a signed package
 
@@ -113,9 +119,16 @@ err = msix.NewBuilder().
 	Build(context.Background(), f)
 ```
 
+The private key must match the certificate, and Identity.Publisher must exactly
+match Windows' rendering of the certificate subject, including RDN ordering and
+quoting. RFC 2253 (`pkix.Name.String()`) uses a different format. A successful Build
+performs authoring checks; Windows trust and deployment are separate checks.
+
 ### Adding files (streaming)
 
-All payloads are streamed; their contents are never fully held in memory.
+All payloads are streamed; their contents are never fully held in memory. Each
+Build snapshots the source's first read, then uses those same bytes for the block
+map, signing and ZIP output. One-shot reader spills are removed when Build returns.
 
 ```go
 // From disk — opened lazily and streamed during Build

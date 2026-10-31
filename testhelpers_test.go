@@ -24,7 +24,7 @@ func testSelfSignedCert(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
 
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "Test"},
+		Subject:               pkix.Name{CommonName: "Golden"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(24 * time.Hour),
 		KeyUsage:              x509.KeyUsageDigitalSignature,
