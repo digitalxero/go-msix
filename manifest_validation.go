@@ -220,7 +220,17 @@ func (b *builder) validateReferences(m *manifestData) error {
 
 // Only documented MRT qualifiers count, so an unrelated same-named file cannot
 // hide a missing image. Both dot-qualified files and qualifier directories work.
-var assetQualifier = regexp.MustCompile(`(?i)^(scale-[0-9]+|targetsize-[0-9]+|contrast-(standard|high|black|white)|altform-(unplated|lightunplated)|language-[a-z0-9-]+|[a-z]{2,3}(-[a-z0-9]{2,8})*)$`)
+var assetQualifier = regexp.MustCompile(`(?i)^(scale-[0-9]+|targetsize-[0-9]+|contrast-(standard|high|black|white)|(altform|alternateform|language|homeregion|layoutdir|layoutdirection|dxfl|dxfeaturelevel|configuration|devicefamily|custom)-[a-z0-9-]+)$`)
+var assetLanguage = regexp.MustCompile(`(?i)^[a-z]{2,3}(-[a-z0-9]{2,8})*$`)
+
+func assetQualifiers(value string, folder bool) bool {
+	for _, q := range strings.Split(value, "_") {
+		if !assetQualifier.MatchString(q) && !(folder && assetLanguage.MatchString(q)) {
+			return false
+		}
+	}
+	return true
+}
 
 func qualifiedAssetMatches(reference, candidate string) bool {
 	ref := strings.Split(windowsPathKey(reference), "/")
@@ -236,10 +246,8 @@ func qualifiedAssetMatches(reference, candidate string) bool {
 		if !strings.HasPrefix(stem, base+".") {
 			return false
 		}
-		for _, q := range strings.Split(strings.TrimPrefix(stem, base+"."), "_") {
-			if !assetQualifier.MatchString(q) {
-				return false
-			}
+		if !assetQualifiers(strings.TrimPrefix(stem, base+"."), false) {
+			return false
 		}
 	}
 	ri := 0
@@ -248,7 +256,7 @@ func qualifiedAssetMatches(reference, candidate string) bool {
 			ri++
 			continue
 		}
-		if !assetQualifier.MatchString(segment) {
+		if !assetQualifiers(segment, true) {
 			return false
 		}
 	}

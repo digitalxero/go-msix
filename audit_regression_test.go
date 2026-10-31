@@ -404,3 +404,29 @@ func TestAuditServiceExecutableContext(t *testing.T) {
 		assert.True(t, found)
 	}
 }
+
+// MRT permits named and combined qualifiers in both folders and filenames.
+func TestAuditQualifiedAssets(t *testing.T) {
+	for _, name := range []string{
+		"Assets/contrast-high_scale-400/Logo.png",
+		"Assets/Logo.language-en_scale-200.png",
+		"Assets/layoutdir-rtl/Logo.png",
+		"Assets/Logo.homeregion-US.png",
+		"Assets/Logo.configuration-designer.png",
+		"Assets/Logo.devicefamily-desktop.png",
+		"Assets/Logo.custom-premium.png",
+		"Assets/alternateform-custom/Logo.png",
+		"Assets/ja/Logo.png",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := auditBuild(auditBase().WithProperties(auditProperties().WithLogo("Assets/Logo.png").Build()).AddFileFromBytes(name, []byte("image")))
+			require.NoError(t, err)
+		})
+	}
+	for _, name := range []string{"Assets/unrelated/Logo.png", "Assets/Logo.unknown-qualifier.png", "Assets/Logo.en-us.png", "Assets/Other.scale-200.png"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := auditBuild(auditBase().WithProperties(auditProperties().WithLogo("Assets/Logo.png").Build()).AddFileFromBytes(name, nil))
+			require.ErrorContains(t, err, "missing payload")
+		})
+	}
+}

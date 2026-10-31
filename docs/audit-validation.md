@@ -30,7 +30,8 @@ case-sensitive uniqueness, service/path ownership uses Windows uppercase identit
 and publisher matching is exact. `Programs` and `Common Programs` shortcuts remain
 separate destinations; case/separator aliases of each constant conflict.
 
-Core image references accept qualified MRT variants; resource strings in metadata
+Core image references accept named/combined MRT qualifiers in filenames and folders;
+bare language qualifiers are supported in folders. Resource strings in metadata
 are preserved. An omitted application executable remains legal for activation-only
 apps. This API does not expose sparse-package `AllowExternalContent` authoring;
 validation does not introduce an unsupported external-location mode. CodeIntegrity
