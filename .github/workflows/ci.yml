@@ -101,13 +101,14 @@ jobs:
     runs-on: windows-latest
     env:
       MSIX_WINDOWS_AUDIT: "1"
-      MSIX_AUDIT_ARTIFACTS: ${{ runner.temp }}/msix-audit-artifacts
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
       - name: Public regressions, native publisher, SDK controls, and deployment
+        env:
+          MSIX_AUDIT_ARTIFACTS: ${{ runner.temp }}/msix-audit-artifacts
         shell: powershell
         run: go test -short -v -count=1 -timeout=15m .
       - name: Retain audit diagnostics
