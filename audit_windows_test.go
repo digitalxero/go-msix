@@ -128,7 +128,7 @@ func TestAuditSDKWindows(t *testing.T) {
 			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`},
 		{"resource both", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithProperties(auditProperties().WithFramework(true).Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
+			return nativeBase(t, "Audit.Resources").WithProperties(auditProperties().WithFramework(true).Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
 	}
 	for _, tc := range cases {
@@ -215,7 +215,7 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	result := filepath.Join(dir, "shortcut-args.txt")
 	shortcut := msix.NewShortcut().WithFile(`$(Desktop)\` + shortcutName).WithIcon("app.exe").WithArguments(`--audit-output "` + result + `" "A & B"`).WithDisplayName("go-msix Audit shortcut").Build()
 	signing := msix.NewSigning().WithCertificate(leaf).WithPrivateKey(leafKey).WithCertChain(root).Build()
-	b := nativeBase(t, id).WithSigning(signing).WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").AddRestricted("packagedServices").AddRestricted("localSystemServices").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", payload).AddApplication(nativeApp("App", shortcut, msix.NewProtocol().WithName(protocol).WithDisplayName("Audit protocol").Build())).AddApplication(nativeApp("Service", msix.NewService().WithName(serviceName).WithStartupType("manual").WithStartAccount("localSystem").Build()))
+	b := nativeBase(t, id).WithSigning(signing).WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").AddRestricted("packagedServices").AddRestricted("localSystemServices").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", payload).AddApplication(nativeApp("App", shortcut, msix.NewProtocol().WithName(protocol).WithDisplayName("Audit protocol").Build())).AddFileFromBytes("service.exe", payload).AddApplication(msix.NewApplication().WithID("Service").WithExecutable("service.exe").WithEntryPoint("Windows.FullTrustApplication").WithVisualElements(nativeVisual()).AddExtension(msix.NewService().WithName(serviceName).WithStartupType("manual").WithStartAccount("localSystem").Build()).Build())
 	data, err := auditBuild(b)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "signed.msix"), data, 0600))
@@ -247,30 +247,43 @@ try {
  Add-AppxPackage "$dir\signed.msix"
  $pkg=Get-AppxPackage -Name $id
  if (-not $pkg) {throw 'package missing after deployment'}
+ Write-Host ("Native launch identity/session: "+[Security.Principal.WindowsIdentity]::GetCurrent().Name+" / "+(Get-Process -Id $PID).SessionId)
+ $failures=@()
+ try {
  $path=Join-Path ([Environment]::GetFolderPath('Desktop')) $shortcutName
  if (-not (Test-Path $path)) {throw "shortcut missing: $path"}
  $shell=New-Object -ComObject WScript.Shell
  $link=$shell.CreateShortcut($path)
+ Write-Host ("Shortcut target/arguments: "+$link.TargetPath+" / "+$link.Arguments)
  if ($link.Arguments -notmatch 'A & B') {throw "shortcut lost arguments: $($link.Arguments)"}
  Start-Process $path
  $deadline=(Get-Date).AddSeconds(30)
  while (-not (Test-Path $result) -and (Get-Date) -lt $deadline) {Start-Sleep -Milliseconds 200}
  if (-not (Test-Path $result)) {throw 'shortcut launch produced no receipt'}
  if ((Get-Content -Raw $result) -ne 'A & B') {throw 'actual shortcut launch arguments differ'}
+ Write-Host 'PASS: actual shortcut launch arguments'
+ } catch { $failures += "shortcut: $($_.Exception.Message)"; Write-Host $failures[-1] }
+ try {
  $protocolResult=Join-Path $dir 'protocol.txt'
  Start-Process ($protocol+':?out='+[uri]::EscapeDataString($protocolResult))
  $deadline=(Get-Date).AddSeconds(30)
  while (-not (Test-Path $protocolResult) -and (Get-Date) -lt $deadline) {Start-Sleep -Milliseconds 200}
  if (-not (Test-Path $protocolResult)) {throw 'protocol activation produced no receipt'}
  if ((Get-Content -Raw $protocolResult) -ne 'protocol') {throw 'protocol activation receipt differs'}
+ Write-Host 'PASS: protocol activation'
+ } catch { $failures += "protocol: $($_.Exception.Message)"; Write-Host $failures[-1] }
+ try {
  $svc=Get-Service -Name $serviceName -ErrorAction Stop
  Start-Service $serviceName
  (Get-Service $serviceName).WaitForStatus('Running',[TimeSpan]::FromSeconds(30))
  Stop-Service $serviceName
  (Get-Service $serviceName).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(30))
+ Write-Host 'PASS: native SCM service start/stop'
+ } catch { $failures += "service: $($_.Exception.Message)"; Write-Host $failures[-1] }
  Remove-AppxPackage $pkg.PackageFullName
  if (Test-Path $path) {throw 'shortcut survived package removal'}
  if (Get-Service $serviceName -ErrorAction SilentlyContinue) {throw 'service survived package removal'}
+ try {
  Add-AppxPackage "$dir\assets.msix"
  $assets=Get-AppxPackage -Name ($id+'Assets')
  if (-not $assets) {throw 'asset package missing'}
@@ -278,7 +291,10 @@ try {
  try {Start-Process -FilePath (Join-Path $assets.InstallLocation 'app.exe') -ArgumentList @('--audit-output',"$dir\blocked.txt",'unexpected') -Wait -ErrorAction Stop} catch {$blocked=$true}
  if (Test-Path "$dir\blocked.txt") {throw 'AllowExecution=false payload executed'}
  if (-not $blocked) {throw 'non-executable asset launch was not explicitly rejected'}
- Write-Host 'PASS: signature, deployment, shortcut arguments/launch, service start/stop/removal, non-executable assets'
+ Write-Host 'PASS: non-executable asset deployment/launch rejection'
+ } catch { $failures += "assets: $($_.Exception.Message)"; Write-Host $failures[-1] }
+ if ($failures.Count -gt 0) {throw ($failures -join [Environment]::NewLine)}
+ Write-Host 'PASS: signature, deployment, shortcut arguments/launch, protocol, service start/stop/removal, non-executable assets'
 } finally {
  Get-AppxPackage -Name $id | Remove-AppxPackage
  Get-AppxPackage -Name ($id+'Assets') | Remove-AppxPackage

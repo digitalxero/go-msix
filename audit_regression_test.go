@@ -310,7 +310,7 @@ func TestAuditManifestSerialization(t *testing.T) {
 			}
 			b := auditBase().WithIdentity(auditIdentity().WithResourceID("resources").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build())
 			if mode == "both" {
-				b.WithIdentity(auditIdentity().Build()).WithProperties(auditProperties().WithFramework(true).Build())
+				b.WithIdentity(auditIdentity().Build()).WithProperties(auditProperties().WithFramework(true).Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build())
 				b.AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 			}
 			data := auditManifest(t, b)
