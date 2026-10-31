@@ -231,6 +231,11 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	data, err = auditBuild(asset)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets.msix"), data, 0600))
+
+	control := nativeBase(t, id+"AssetsControl").WithSigning(signing).WithProperties(auditProperties().WithAllowExecution(true).WithFramework(true).Build()).AddFileFromBytes("app.exe", payload)
+	data, err = auditBuild(control)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "allowed-assets.msix"), data, 0600))
 	nativePowerShell(t, `
 param($dir,$id,$shortcutName,$serviceName,$result,$signtool,$protocol,$makeappx)
 $root=$null; $leaf=$null
@@ -286,6 +291,12 @@ try {
  if (Test-Path $path) {throw 'shortcut survived package removal'}
  if (Get-Service $serviceName -ErrorAction SilentlyContinue) {throw 'service survived package removal'}
  try {
+ Add-AppxPackage "$dir\allowed-assets.msix"
+ $control=Get-AppxPackage -Name ($id+'AssetsControl')
+ if (-not $control) {throw 'AllowExecution=true control package missing'}
+ Start-Process -FilePath (Join-Path $control.InstallLocation 'app.exe') -ArgumentList @('--audit-output',"$dir\allowed.txt",'allowed') -Wait -ErrorAction Stop
+ if (-not (Test-Path "$dir\allowed.txt")) {throw 'AllowExecution=true control did not execute'}
+ if ((Get-Content -Raw "$dir\allowed.txt") -ne 'allowed') {throw 'AllowExecution=true control receipt differs'}
  Add-AppxPackage "$dir\assets.msix"
  $assets=Get-AppxPackage -Name ($id+'Assets')
  if (-not $assets) {throw 'asset package missing'}
@@ -300,6 +311,7 @@ try {
 } finally {
  Get-AppxPackage -Name $id | Remove-AppxPackage
  Get-AppxPackage -Name ($id+'Assets') | Remove-AppxPackage
+ Get-AppxPackage -Name ($id+'AssetsControl') | Remove-AppxPackage
  if ($leaf) {Remove-Item ("Cert:\LocalMachine\TrustedPeople\"+$leaf.Thumbprint)}
  if ($root) {Remove-Item ("Cert:\LocalMachine\Root\"+$root.Thumbprint)}
 }
