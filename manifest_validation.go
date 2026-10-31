@@ -238,7 +238,7 @@ func (b *builder) validateReferences(m *manifestData) error {
 // rules. Match only the parsed path; leave query/fragment text in the manifest.
 // Explicit ms-appx-web authorities can name dependencies in the package graph.
 func startPagePath(value, packageName string) (string, error) {
-	u, err := url.Parse(strings.ReplaceAll(value, `\`, "/"))
+	u, err := url.Parse(value)
 	if err != nil {
 		return "", err
 	}
