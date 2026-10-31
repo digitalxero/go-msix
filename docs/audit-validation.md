@@ -13,7 +13,7 @@ preserve each reported failure as a separate regression. They do not change nFPM
 | #11 protocol display name | `TestAuditManifestSerialization/protocol`: decoded UAP child and escaped value, logo retained |
 | #12 shortcut fields | `TestAuditManifestSerialization/shortcut`: decoded arguments including legal whitespace and desktop10 display-name attribute |
 | #13 execution property | `TestAuditManifestSerialization/allow_execution_*`: explicit true/false and omission |
-| #14 resource namespace | `TestAuditManifestSerialization/resource_*`: Scale/DXFeatureLevel independently and together without apps |
+| #14 resource namespace | `TestAuditManifestSerialization/resource_*`: Scale/DXFeatureLevel independently and in separate resource entries without apps |
 | #15 XML characters | `TestAuditXMLCharacters`: invalid UTF-8 and forbidden controls in properties, publisher, extension; Unicode/markup controls |
 | #16 source consistency | `TestAuditChangingSources`: empty/growing/shrinking/same-size/stable sources, unsigned/signed; full ZIP reads and one read per source |
 
@@ -66,3 +66,11 @@ missing tools and failed checks are blockers. Cross-compilation, XML checks and
 skipped tests are not native trust/deployment acceptance. Local fleet capability
 probing on this handoff timed out connecting to `dj-window.taild916a5.ts.net:22`.
 Hosted Windows results are recorded in the PR before merge.
+
+Native SDK controls established two additional core constraints: resource packages
+omit ProcessorArchitecture, and Scale/DXFeatureLevel are mutually exclusive on a
+single Resource element. Combined positive coverage uses separate entries. First-red
+public receipts for both constraints are retained alongside the original regressions.
+MakeAppx mapping authoring ignores supplied block-map/signature footprints; its
+controls assert omission/regeneration. The library deliberately rejects ownership
+conflicts instead of silently discarding caller input.

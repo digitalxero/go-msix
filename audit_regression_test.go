@@ -128,6 +128,9 @@ func TestAuditCoreManifest(t *testing.T) {
 		{"short version", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithVersion("1.2.3").Build()) }},
 		{"leading zero", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithVersion("01.2.3.0").Build()) }},
 		{"name", func(b msix.Builder) { b.WithIdentity(auditIdentity().WithName("bad package name").Build()) }},
+		{"resource exclusive qualifiers", func(b msix.Builder) {
+			b.AddResource(msix.NewResource().WithScale("100").WithDXFeatureLevel("dx9").Build())
+		}},
 		{"resource architecture", func(b msix.Builder) {
 			b.WithIdentity(auditIdentity().WithResourceID("en-us").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build())
 		}},
@@ -284,10 +287,14 @@ func TestAuditManifestSerialization(t *testing.T) {
 			if mode != "dx" {
 				r.WithScale("100")
 			}
-			if mode != "scale" {
+			if mode == "dx" {
 				r.WithDXFeatureLevel("dx9")
 			}
-			data := auditManifest(t, auditBase().WithIdentity(auditIdentity().WithResourceID("resources").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build()))
+			b := auditBase().WithIdentity(auditIdentity().WithResourceID("resources").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(r.Build())
+			if mode == "both" {
+				b.AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
+			}
+			data := auditManifest(t, b)
 			es := auditElements(t, data, "Resource")
 			for _, e := range es {
 				for _, a := range e.Attr {

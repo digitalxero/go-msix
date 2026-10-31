@@ -128,7 +128,7 @@ func TestAuditSDKWindows(t *testing.T) {
 			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("dx9").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:DXFeatureLevel="dx9"`, `uap:DXFeatureLevel="invalid"`},
 		{"resource both", func() msix.Builder {
-			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("both").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").WithDXFeatureLevel("dx9").Build())
+			return nativeBase(t, "Audit.Resources").WithIdentity(auditIdentity().WithName("Audit.Resources").WithResourceID("both").WithProcessorArchitecture("").Build()).WithProperties(auditProperties().WithResourcePackage(true).Build()).AddResource(msix.NewResource().WithScale("100").Build()).AddResource(msix.NewResource().WithDXFeatureLevel("dx9").Build())
 		}, `uap:Scale="100"`, `uap:Scale="invalid"`},
 	}
 	for _, tc := range cases {
@@ -215,7 +215,7 @@ func TestAuditDeploymentWindows(t *testing.T) {
 	result := filepath.Join(dir, "shortcut-args.txt")
 	shortcut := msix.NewShortcut().WithFile(`$(Desktop)\` + shortcutName).WithIcon("app.exe").WithArguments(`--audit-output "` + result + `" "A & B"`).WithDisplayName("go-msix Audit shortcut").Build()
 	signing := msix.NewSigning().WithCertificate(leaf).WithPrivateKey(leafKey).WithCertChain(root).Build()
-	b := nativeBase(t, id).WithSigning(signing).WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").AddRestricted("localSystemServices").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", payload).AddApplication(nativeApp("App", shortcut, msix.NewProtocol().WithName(protocol).WithDisplayName("Audit protocol").Build())).AddApplication(nativeApp("Service", msix.NewService().WithName(serviceName).WithStartupType("manual").WithStartAccount("localSystem").Build()))
+	b := nativeBase(t, id).WithSigning(signing).WithCapabilities(msix.NewCapabilities().AddRestricted("runFullTrust").AddRestricted("packagedServices").AddRestricted("localSystemServices").Build()).AddResource(msix.NewResource().WithLanguage("en-us").Build()).AddFileFromBytes("app.exe", payload).AddApplication(nativeApp("App", shortcut, msix.NewProtocol().WithName(protocol).WithDisplayName("Audit protocol").Build())).AddApplication(nativeApp("Service", msix.NewService().WithName(serviceName).WithStartupType("manual").WithStartAccount("localSystem").Build()))
 	data, err := auditBuild(b)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "signed.msix"), data, 0600))
@@ -307,8 +307,6 @@ func TestAuditPayloadSDKWindows(t *testing.T) {
 		require.NoError(t, os.WriteFile(source, body, 0600))
 		fmt.Fprintf(&baseMapping, "\"%s\" \"%s\"\n", source, name)
 	}
-	source := filepath.Join(baseDir, "source.txt")
-	require.NoError(t, os.WriteFile(source, []byte("payload"), 0600))
 	cases := []struct {
 		name  string
 		paths []string
@@ -320,8 +318,8 @@ func TestAuditPayloadSDKWindows(t *testing.T) {
 		{"separator alias", []string{`dir\data.txt`, "dir/data.txt"}, false},
 		{"ancestor", []string{"data", `data\child.txt`}, false},
 		{"manifest", []string{"APPXMANIFEST.XML"}, false},
-		{"blockmap", []string{"AppxBlockMap.xml"}, false},
-		{"signature", []string{"AppxSignature.p7x"}, false},
+		{"blockmap", []string{"AppxBlockMap.xml"}, true},
+		{"signature", []string{"AppxSignature.p7x"}, true},
 		{"traversal", []string{`..\outside.txt`}, false},
 		{"drive", []string{`C:\outside.txt`}, false},
 		{"UNC", []string{`\\server\share.txt`}, false},
@@ -334,8 +332,12 @@ func TestAuditPayloadSDKWindows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			mapping := baseMapping.String()
-			for _, name := range tc.paths {
-				mapping += fmt.Sprintf("\"%s\" \"%s\"\n", source, name)
+			for i, name := range tc.paths {
+				// Distinct owners prevent MakeAppx from silently coalescing
+				// repeated mappings of the same source file before ZIP authoring.
+				owner := filepath.Join(dir, fmt.Sprintf("source-%d.txt", i))
+				require.NoError(t, os.WriteFile(owner, []byte(fmt.Sprintf("payload-%d", i)), 0600))
+				mapping += fmt.Sprintf("\"%s\" \"%s\"\n", owner, name)
 			}
 			file := filepath.Join(dir, "mapping.txt")
 			require.NoError(t, os.WriteFile(file, []byte(mapping), 0600))
@@ -344,6 +346,15 @@ func TestAuditPayloadSDKWindows(t *testing.T) {
 			t.Logf("MakeAppx payload valid=%t: %s", tc.valid, out)
 			if tc.valid {
 				require.NoError(t, err)
+				if tc.name == "blockmap" || tc.name == "signature" {
+					require.Contains(t, string(out), "Ignoring footprint file")
+					result, err := os.ReadFile(filepath.Join(dir, "mapped.msix"))
+					require.NoError(t, err)
+					files := unzip(t, result)
+					assert.NotContains(t, files, "AppxSignature.p7x")
+					assert.Contains(t, string(files["AppxBlockMap.xml"]), "BlockMap")
+					assert.NotEqual(t, "payload-0", string(files[tc.paths[0]]))
+				}
 			} else {
 				require.Error(t, err, "SDK must reject invalid payload mapping")
 			}

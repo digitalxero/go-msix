@@ -70,6 +70,10 @@ func validateCoreManifest(m *manifestData) error {
 		check(id.ResourceID != "", "resource package identity resource ID", "is required")
 		check(len(m.Applications) == 0, "resource package applications", "must be omitted")
 	}
+	for i, r := range m.Resources {
+		check(r.Scale == "" || r.DXFeatureLevel == "", fmt.Sprintf("resource[%d]", i), "must not combine Scale and DXFeatureLevel on one element")
+	}
+
 	text := func(s, field string, max int, required bool) {
 		if !required && s == "" {
 			return
