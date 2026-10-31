@@ -287,3 +287,66 @@ try {
 }
 `, dir, id, shortcutName, serviceName, result, signtool, protocol, makeappx)
 }
+
+// A MakeAppx mapping keeps invalid package names independent of the host
+// filesystem (which cannot create NUL.txt or two case-only source filenames).
+func TestAuditPayloadSDKWindows(t *testing.T) {
+	tool := nativeTool(t, "makeappx")
+	data, err := auditBuild(nativeBase(t, "Audit.Mapping").WithProperties(auditProperties().WithFramework(true).Build()))
+	require.NoError(t, err)
+	baseDir := t.TempDir()
+	parts := unzip(t, data)
+	var baseMapping strings.Builder
+	baseMapping.WriteString("[Files]\n")
+	for name, body := range parts {
+		if name == "AppxBlockMap.xml" || name == "[Content_Types].xml" {
+			continue
+		}
+		source := filepath.Join(baseDir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(source), 0755))
+		require.NoError(t, os.WriteFile(source, body, 0600))
+		fmt.Fprintf(&baseMapping, "\"%s\" \"%s\"\n", source, name)
+	}
+	source := filepath.Join(baseDir, "source.txt")
+	require.NoError(t, os.WriteFile(source, []byte("payload"), 0600))
+	cases := []struct {
+		name  string
+		paths []string
+		valid bool
+	}{
+		{"distinct", []string{"data.txt", "other.txt"}, true},
+		{"duplicate", []string{"data.txt", "data.txt"}, false},
+		{"case alias", []string{"data.txt", "DATA.TXT"}, false},
+		{"separator alias", []string{`dir\data.txt`, "dir/data.txt"}, false},
+		{"ancestor", []string{"data", `data\child.txt`}, false},
+		{"manifest", []string{"APPXMANIFEST.XML"}, false},
+		{"blockmap", []string{"AppxBlockMap.xml"}, false},
+		{"signature", []string{"AppxSignature.p7x"}, false},
+		{"traversal", []string{`..\outside.txt`}, false},
+		{"drive", []string{`C:\outside.txt`}, false},
+		{"UNC", []string{`\\server\share.txt`}, false},
+		{"device", []string{"NUL.txt"}, false},
+		{"trailing dot", []string{"readme.txt."}, false},
+		{"trailing space", []string{"readme.txt "}, false},
+		{"stream", []string{"file.txt:stream"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mapping := baseMapping.String()
+			for _, name := range tc.paths {
+				mapping += fmt.Sprintf("\"%s\" \"%s\"\n", source, name)
+			}
+			file := filepath.Join(dir, "mapping.txt")
+			require.NoError(t, os.WriteFile(file, []byte(mapping), 0600))
+			cmd := exec.Command(tool, "pack", "/f", file, "/p", filepath.Join(dir, "mapped.msix"), "/o")
+			out, err := cmd.CombinedOutput()
+			t.Logf("MakeAppx payload valid=%t: %s", tc.valid, out)
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err, "SDK must reject invalid payload mapping")
+			}
+		})
+	}
+}
