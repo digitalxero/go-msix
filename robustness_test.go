@@ -35,7 +35,7 @@ func TestBuild_TempFilesCleanedUp(t *testing.T) {
 // exactly once (compressed to a spill, which is then replayed for output/digests).
 func TestBuild_SourceOpenedOncePerBuild(t *testing.T) {
 	var opens int64
-	b := goldenBaseBuilder().AddFileSource("big.dat", func() (io.ReadCloser, error) {
+	b := goldenBaseBuilder().AddFileFromBytes("App.exe", []byte("MZ")).AddFileSource("big.dat", func() (io.ReadCloser, error) {
 		atomic.AddInt64(&opens, 1)
 		return io.NopCloser(strings.NewReader("payload data that will be deflated to a spill")), nil
 	})

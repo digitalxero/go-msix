@@ -19,9 +19,9 @@ func baseExtBuilder() msix.Builder {
 		WithIdentity(msix.NewIdentity().
 			WithName("Ext.Test").WithVersion("1.0.0.0").WithPublisher("CN=Test").Build()).
 		WithProperties(msix.NewProperties().
-			WithDisplayName("Ext Test").WithPublisherDisplayName("Test").Build()).
+			WithDisplayName("Ext Test").WithPublisherDisplayName("Test").WithLogo("a.png").Build()).
 		WithDependencies(msix.NewDependencies().
-			AddTargetDeviceFamily("Windows.Desktop", "10.0.17763.0", "10.0.22621.0").Build())
+			AddTargetDeviceFamily("Windows.Desktop", "10.0.17763.0", "10.0.22621.0").Build()).AddFileFromBytes("App.exe", []byte("MZ")).AddFileFromBytes("a.png", []byte("a")).AddFileFromBytes("b.png", []byte("b"))
 }
 
 func extManifestXML(t *testing.T, b msix.Builder) string {

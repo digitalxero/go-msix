@@ -59,7 +59,7 @@ func TestComputeLfhSize(t *testing.T) {
 
 func TestFindCentralDirectoryOffset(t *testing.T) {
 	var buf bytes.Buffer
-	err := goldenBaseBuilder().
+	err := goldenBaseBuilder().AddFileFromBytes("App.exe", []byte("MZ")).
 		AddFileFromBytes("a.txt", []byte("aaa")).
 		Build(context.Background(), &buf)
 	require.NoError(t, err)

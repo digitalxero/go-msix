@@ -2,13 +2,11 @@ package msix
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
-	"strings"
 )
 
 // Builder constructs an MSIX package. Configuration methods return the Builder for
@@ -26,10 +24,10 @@ type Builder interface {
 	AddFile(packagePath, diskPath string) Builder
 	AddFileFromBytes(packagePath string, data []byte) Builder
 	AddFileFromReader(packagePath string, r io.Reader) Builder
-	// AddFileSource adds a file from a re-openable source. open may be called more
-	// than once during Build (e.g. once for digesting and once for output when
-	// signing) and must return a fresh reader positioned at the start each time. The
-	// contents are streamed and never fully loaded into memory.
+	// AddFileSource adds a file from a re-openable source. Each Build streams one
+	// read into an immutable snapshot; metadata, signing and ZIP output all use
+	// that snapshot. open must return a fresh reader positioned at the start.
+	// Payloads are never fully loaded into memory.
 	AddFileSource(packagePath string, open func() (io.ReadCloser, error)) Builder
 
 	WithSigning(Signing) Builder
@@ -92,20 +90,12 @@ func (b *builder) WithSigning(s Signing) Builder { b.signing = s; return b }
 // AddFile adds a file from disk. The file is opened lazily during Build and
 // streamed; its contents are never fully loaded into memory.
 func (b *builder) AddFile(packagePath, diskPath string) Builder {
-	b.files = append(b.files, fileEntry{
-		packagePath: normalizePackagePath(packagePath),
-		source:      diskFileSource{path: diskPath},
-	})
-	return b
+	return b.addFile(packagePath, diskFileSource{path: diskPath})
 }
 
 // AddFileFromBytes adds a file from a byte slice.
 func (b *builder) AddFileFromBytes(packagePath string, data []byte) Builder {
-	b.files = append(b.files, fileEntry{
-		packagePath: normalizePackagePath(packagePath),
-		source:      bytesFileSource{data: append([]byte(nil), data...)},
-	})
-	return b
+	return b.addFile(packagePath, bytesFileSource{data: append([]byte(nil), data...)})
 }
 
 // AddFileFromReader adds a file from a (possibly one-shot) reader. The reader is
@@ -128,20 +118,12 @@ func (b *builder) AddFileFromReader(packagePath string, r io.Reader) Builder {
 		b.errs = append(b.errs, fmt.Errorf("msix: writing temp for %s: %w", packagePath, err))
 		return b
 	}
-	b.files = append(b.files, fileEntry{
-		packagePath: normalizePackagePath(packagePath),
-		source:      diskFileSource{path: tmp},
-	})
-	return b
+	return b.addFile(packagePath, diskFileSource{path: tmp})
 }
 
 // AddFileSource adds a file from a caller-supplied re-openable source.
 func (b *builder) AddFileSource(packagePath string, open func() (io.ReadCloser, error)) Builder {
-	b.files = append(b.files, fileEntry{
-		packagePath: normalizePackagePath(packagePath),
-		source:      funcFileSource{opener: open},
-	})
-	return b
+	return b.addFile(packagePath, funcFileSource{opener: open})
 }
 
 // Build assembles and streams the MSIX package to w.
@@ -153,8 +135,16 @@ func (b *builder) Build(ctx context.Context, w io.Writer) error {
 		return err
 	}
 
+	if err := b.validatePayloads(); err != nil {
+		return err
+	}
+
 	m := b.assembleManifest()
 	if err := validateManifest(m); err != nil {
+		return err
+	}
+
+	if err := errors.Join(validateCoreManifest(m), b.validateReferences(m), validateRegistrationIdentities(m)); err != nil {
 		return err
 	}
 
@@ -167,6 +157,14 @@ func (b *builder) Build(ctx context.Context, w io.Writer) error {
 		creds, err := b.signing.(*signing).resolve()
 		if err != nil {
 			return fmt.Errorf("msix: resolving signing credentials: %w", err)
+		}
+
+		publisher, err := certificatePublisher(creds.cert.RawSubject)
+		if err != nil {
+			return fmt.Errorf("msix: signing certificate publisher: %w", err)
+		}
+		if m.Identity.Publisher != publisher {
+			return fmt.Errorf("msix: identity publisher %q does not match signing certificate subject %q", m.Identity.Publisher, publisher)
 		}
 		return b.buildSigned(w, manifestData, creds)
 	}
@@ -371,16 +369,7 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 		if entry.name != "AppxMetadata/CodeIntegrity.cat" {
 			continue
 		}
-		r, err := entry.source.open()
-		if err != nil {
-			return fmt.Errorf("msix: opening code integrity catalog: %w", err)
-		}
-		h := sha256.New()
-		_, readErr := io.Copy(h, r)
-		if err := errors.Join(readErr, r.Close()); err != nil {
-			return fmt.Errorf("msix: hashing code integrity catalog: %w", err)
-		}
-		digest := [32]byte(h.Sum(nil))
+		digest := entry.contentHash
 		axci = &digest
 	}
 
@@ -406,11 +395,4 @@ func (b *builder) buildSigned(w io.Writer, manifestData []byte, creds *signingCr
 // writeZip streams the given entries into a new canonical-form zip written to w.
 func writeZip(w io.Writer, entries []*compressedEntry) error {
 	return writeCanonicalZip(w, entries)
-}
-
-func normalizePackagePath(p string) string {
-	// Use forward slashes and clean the path.
-	p = strings.ReplaceAll(p, "\\", "/")
-	p = strings.TrimPrefix(p, "/")
-	return p
 }

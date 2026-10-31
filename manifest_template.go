@@ -30,6 +30,7 @@ const (
 	nsDesktop4   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
 	nsDesktop6   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
 	nsDesktop7   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
+	nsDesktop10  = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/10"
 	nsDesktop9   = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
 	nsCom        = "http://schemas.microsoft.com/appx/manifest/com/windows10"
 	nsCom2       = "http://schemas.microsoft.com/appx/manifest/com/windows10/2"
@@ -56,6 +57,15 @@ func manifestNamespaces(m *manifestData) []nsEntry {
 	}
 	if len(m.Capabilities.UAP) > 0 {
 		ns["uap"] = nsUAP
+	}
+
+	for _, r := range m.Resources {
+		if r.Scale != "" || r.DXFeatureLevel != "" {
+			ns["uap"] = nsUAP
+		}
+	}
+	if m.Properties.AllowExecutionSet {
+		ns["uap6"] = nsUAP6
 	}
 
 	// Check rescap.
@@ -100,6 +110,9 @@ func manifestNamespaces(m *manifestData) []nsEntry {
 }
 
 func addExtensionNamespaces(ext appExtData, ns map[string]string) {
+	if ext.Shortcut != nil && ext.Shortcut.DisplayName != "" {
+		ns["desktop10"] = nsDesktop10
+	}
 	// uap
 	if ext.Protocol != nil || ext.FileTypeAssociation != nil || ext.ShareTarget != nil ||
 		ext.FileOpenPicker != nil || ext.FileSavePicker != nil ||
@@ -217,6 +230,9 @@ func addPackageExtensionNamespaces(ext pkgExtData, ns map[string]string) {
 
 // renderManifest renders the AppxManifest.xml for the given manifest.
 func renderManifest(m *manifestData) ([]byte, error) {
+	if err := validateManifestXML(m); err != nil {
+		return nil, err
+	}
 	ns := manifestNamespaces(m)
 
 	// Build a lookup set for hasNS template function.
@@ -258,6 +274,9 @@ var templateFuncs = template.FuncMap{
 		s = strings.ReplaceAll(s, ">", "&gt;")
 		s = strings.ReplaceAll(s, "\"", "&quot;")
 		s = strings.ReplaceAll(s, "'", "&apos;")
+		s = strings.ReplaceAll(s, "\t", "&#x9;")
+		s = strings.ReplaceAll(s, "\n", "&#xA;")
+		s = strings.ReplaceAll(s, "\r", "&#xD;")
 		return s
 	},
 	"hasCaps": func(c capabilitiesData) bool {
@@ -307,8 +326,8 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
 {{- if .Manifest.Properties.ResourcePackage }}
     <ResourcePackage>true</ResourcePackage>
 {{- end }}
-{{- if .Manifest.Properties.AllowExecution }}
-    <AllowExecution>true</AllowExecution>
+{{- if .Manifest.Properties.AllowExecutionSet }}
+    <uap6:AllowExecution>{{ .Manifest.Properties.AllowExecution }}</uap6:AllowExecution>
 {{- end }}
 {{- if .Manifest.Properties.ModificationPackage }}
     <rescap6:ModificationPackage>true</rescap6:ModificationPackage>
@@ -455,9 +474,12 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
 {{- define "appExtension" }}
 {{- if .Protocol }}
         <uap:Extension Category="{{ xmlEscape .Category }}">
-          <uap:Protocol Name="{{ xmlEscape .Protocol.Name }}"{{ if .Protocol.DisplayName }} DesktopAppInfo="{{ xmlEscape .Protocol.DisplayName }}"{{ end }}>
+          <uap:Protocol Name="{{ xmlEscape .Protocol.Name }}">
 {{- if .Protocol.Logo }}
             <uap:Logo>{{ xmlEscape .Protocol.Logo }}</uap:Logo>
+{{- end }}
+{{- if .Protocol.DisplayName }}
+            <uap:DisplayName>{{ xmlEscape .Protocol.DisplayName }}</uap:DisplayName>
 {{- end }}
           </uap:Protocol>
         </uap:Extension>
@@ -648,7 +670,10 @@ const manifestTemplate = `<?xml version="1.0" encoding="utf-8"?>
             Icon="{{ xmlEscape .Shortcut.Icon }}"
 {{- end }}
 {{- if .Shortcut.DisplayName }}
-            DisplayName="{{ xmlEscape .Shortcut.DisplayName }}"
+            desktop10:DisplayName="{{ xmlEscape .Shortcut.DisplayName }}"
+{{- end }}
+{{- if .Shortcut.Arguments }}
+            Arguments="{{ xmlEscape .Shortcut.Arguments }}"
 {{- end }}
 {{- if .Shortcut.Description }}
             Description="{{ xmlEscape .Shortcut.Description }}"

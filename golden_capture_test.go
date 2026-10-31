@@ -2,7 +2,6 @@ package msix
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
@@ -13,7 +12,7 @@ import (
 // goldenBaseBuilder returns a fixed, deterministic builder (no payload files) for
 // byte-equality capture. The configuration must match what the pre-rewrite struct
 // literal produced so the golden hashes remain valid.
-func goldenBaseBuilder() Builder {
+func goldenManifestBuilder() Builder {
 	return NewBuilder().
 		WithIdentity(NewIdentity().
 			WithName("Golden.App").
@@ -43,6 +42,11 @@ func goldenBaseBuilder() Builder {
 				WithSquare44x44Logo("Assets/44.png").
 				Build()).
 			Build())
+}
+
+// goldenBaseBuilder includes qualified image payloads required by its manifest.
+func goldenBaseBuilder() Builder {
+	return goldenManifestBuilder().AddFileFromBytes("Assets/logo.scale-100.png", []byte("logo")).AddFileFromBytes("Assets/150.scale-100.png", []byte("150")).AddFileFromBytes("Assets/44.scale-100.png", []byte("44"))
 }
 
 // goldenPattern returns deterministic bytes of length n.
@@ -75,10 +79,14 @@ func goldenScenarios() map[string]func(Builder) {
 
 func goldenBuildUnsigned(t *testing.T, add func(Builder)) []byte {
 	t.Helper()
-	b := goldenBaseBuilder()
+	b := goldenManifestBuilder().(*builder)
 	add(b)
 	var buf bytes.Buffer
-	require.NoError(t, b.Build(context.Background(), &buf))
+	// This frozen container oracle intentionally retains the historical incomplete
+	// payload inventory. Public Build rejects it now; test the byte writer directly.
+	manifest, err := renderManifest(b.assembleManifest())
+	require.NoError(t, err)
+	require.NoError(t, b.buildUnsigned(&buf, manifest))
 	return buf.Bytes()
 }
 

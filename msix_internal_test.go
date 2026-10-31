@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizePackagePath(t *testing.T) {
@@ -18,6 +19,8 @@ func TestNormalizePackagePath(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.want, normalizePackagePath(tt.input), "normalizePackagePath(%q)", tt.input)
+		got, err := payloadPath(tt.input)
+		require.NoError(t, err)
+		assert.Equal(t, tt.want, got)
 	}
 }

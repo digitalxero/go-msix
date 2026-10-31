@@ -1,6 +1,7 @@
 package msix
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/x509"
 	"fmt"
@@ -63,10 +64,29 @@ func (s *signing) resolve() (*signingCreds, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &signingCreds{cert: cert, key: key, chain: chain}, nil
+		return checkedSigningCreds(cert, key, chain)
 	}
 	if s.cert == nil || s.key == nil {
 		return nil, fmt.Errorf("msix: signing requires a certificate and private key")
 	}
-	return &signingCreds{cert: s.cert, key: s.key, chain: s.chain}, nil
+	return checkedSigningCreds(s.cert, s.key, s.chain)
+}
+
+// Compare public keys through crypto.Signer so RSA and ECDSA use the same check.
+func checkedSigningCreds(cert *x509.Certificate, key crypto.Signer, chain []*x509.Certificate) (*signingCreds, error) {
+	if cert == nil || key == nil {
+		return nil, fmt.Errorf("msix: signing requires a certificate and private key")
+	}
+	certKey, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("msix: certificate public key: %w", err)
+	}
+	signerKey, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		return nil, fmt.Errorf("msix: signer public key: %w", err)
+	}
+	if !bytes.Equal(certKey, signerKey) {
+		return nil, fmt.Errorf("msix: signing private key does not match certificate public key")
+	}
+	return &signingCreds{cert: cert, key: key, chain: chain}, nil
 }

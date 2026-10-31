@@ -83,7 +83,7 @@ func TestStreamingMemory_Unsigned(t *testing.T) {
 		t.Skip("skipping large bounded-memory test in -short mode")
 	}
 
-	b := goldenBaseBuilder().AddFileSource("big.dat", func() (io.ReadCloser, error) {
+	b := goldenBaseBuilder().AddFileFromBytes("App.exe", []byte("MZ")).AddFileSource("big.dat", func() (io.ReadCloser, error) {
 		return io.NopCloser(&genReader{remaining: largePayloadSize}), nil
 	})
 	b.(*builder).tempDir = t.TempDir()
@@ -102,7 +102,7 @@ func TestStreamingMemory_Signed(t *testing.T) {
 	}
 
 	cert, key := testSelfSignedCert(t)
-	b := goldenBaseBuilder().
+	b := goldenBaseBuilder().AddFileFromBytes("App.exe", []byte("MZ")).
 		AddFileSource("big.dat", func() (io.ReadCloser, error) {
 			return io.NopCloser(&genReader{remaining: largePayloadSize}), nil
 		}).
